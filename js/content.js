@@ -6,6 +6,8 @@
 	// Same path rule as isReleaseUrl in js/verdict.js, which also checks the
 	// host; content scripts can't import modules.
 	const RELEASE_PATH = /\/(album|track)\/[^/]+\/?$/;
+	// How far outside the window a cover still counts as "on screen".
+	const NEAR_PX = 200;
 
 	const handled = new WeakSet();
 	// Counted by release, not by tile: a release can show up in two tiles.
@@ -18,6 +20,7 @@
 		if (String(err).includes("context invalidated")) {
 			alive = false;
 			observer.disconnect();
+			onScreen.disconnect();
 		}
 		return null;
 	}
@@ -101,7 +104,10 @@
 		art.append(badge);
 	}
 
-	async function check(tile) {
+	// `urgent`: the cover is on screen (or close), so the worker checks it
+	// before the off-screen ones. The others are watched and bumped when they
+	// scroll into view.
+	async function check(tile, urgent) {
 		if (handled.has(tile)) {
 			return;
 		}
@@ -113,8 +119,12 @@
 		handled.add(tile);
 		art.classList.add("bff-art");
 		tile.dataset.bff = "pending";
+		if (!urgent) {
+			onScreen.observe(tile);
+		}
 
-		const verdict = await send({ type: "bff:verdict", url });
+		const verdict = await send({ type: "bff:verdict", url, urgent });
+		onScreen.unobserve(tile);
 		const kind = verdict?.kind ?? "unknown";
 		tile.dataset.bff = kind;
 
@@ -132,13 +142,22 @@
 		}
 	}
 
+	function isNearViewport(rect) {
+		return rect.bottom > -NEAR_PX && rect.top < window.innerHeight + NEAR_PX;
+	}
+
 	function scan(root) {
-		if (root.matches?.(TILE_SELECTOR)) {
-			check(root);
-		}
-		for (const tile of root.querySelectorAll?.(TILE_SELECTOR) ?? []) {
-			check(tile);
-		}
+		const tiles = root.matches?.(TILE_SELECTOR) ? [root] : [];
+		tiles.push(...(root.querySelectorAll?.(TILE_SELECTOR) ?? []));
+		const fresh = tiles.filter((tile) => !handled.has(tile));
+		// Read every position before the first DOM write, so the page lays out
+		// once instead of once per tile.
+		const urgent = fresh.map((tile) =>
+			isNearViewport(tile.getBoundingClientRect()),
+		);
+		fresh.forEach((tile, i) => {
+			check(tile, urgent[i]);
+		});
 	}
 
 	const observer = new MutationObserver((mutations) => {
@@ -150,6 +169,34 @@
 			}
 		}
 	});
+
+	// Off-screen requests wait in page order, so on a big label the covers at
+	// the bottom would wait for the whole grid. When pending covers scroll
+	// into view, they jump the worker's queue, in reading order.
+	const onScreen = new IntersectionObserver(
+		(entries) => {
+			const tiles = entries
+				.filter((e) => e.isIntersecting && e.target.dataset.bff === "pending")
+				.map((e) => e.target)
+				.sort((a, b) =>
+					a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING
+						? -1
+						: 1,
+				);
+			const urls = [];
+			for (const tile of tiles) {
+				onScreen.unobserve(tile);
+				const url = releaseUrl(tile);
+				if (url) {
+					urls.push(url);
+				}
+			}
+			if (urls.length > 0) {
+				send({ type: "bff:prioritize", urls });
+			}
+		},
+		{ rootMargin: `${NEAR_PX}px 0px` },
+	);
 
 	scan(document);
 	observer.observe(document.body, { childList: true, subtree: true });
