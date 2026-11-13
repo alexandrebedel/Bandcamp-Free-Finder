@@ -1,0 +1,165 @@
+/*
+ * Bandcamp Free Finder: the band laid across the foot of a free cover.
+ *
+ * A record-shop price sticker in fluorescent green, set in Bandcamp's own
+ * Helvetica so it reads as an annotation on the sleeve, not a new widget.
+ * While a release is being checked, a thin scan line runs along the bottom
+ * edge; when the release is free, that line unfolds into the band.
+ */
+
+.bff-art {
+	--bff-sticker: #3ee07f;
+	--bff-ink: #04150b;
+	--bff-ink-soft: #0d3a20;
+	--bff-sleeve: #0f1411;
+	--bff-sleeve-text: #a9bfb1;
+	--bff-band-h: 24px;
+	--bff-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+	position: relative;
+}
+
+/* Scan line while the release page is being read. */
+[data-bff="pending"] .bff-art::after {
+	content: "";
+	position: absolute;
+	inset: auto 0 0;
+	height: 2px;
+	background:
+		linear-gradient(90deg, transparent, var(--bff-sticker) 50%, transparent) 0 0
+		/ 40% 100% no-repeat,
+		rgb(4 21 11 / 0.35);
+	animation: bff-scan 1.4s linear infinite;
+	pointer-events: none;
+}
+
+@keyframes bff-scan {
+	from {
+		background-position:
+			-60% 0,
+			0 0;
+	}
+	to {
+		background-position:
+			160% 0,
+			0 0;
+	}
+}
+
+.bff-badge {
+	container: bff-band / inline-size;
+	position: absolute;
+	inset: auto 0 0;
+	z-index: 1;
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+	height: var(--bff-band-h);
+	padding: 0 8px;
+
+	background: var(--bff-sticker);
+	color: var(--bff-ink);
+	/* Hairline that lifts the band off busy artwork, plus a soft fall-off. */
+	box-shadow:
+		0 -1px 0 rgb(4 21 11 / 0.3),
+		0 -4px 12px -6px rgb(4 21 11 / 0.55);
+
+	/* Bandcamp's own face, whatever the label theme sets. */
+	font-family: inherit;
+	font-size: 11px;
+	line-height: 1;
+	text-align: left;
+	text-decoration: none;
+	text-transform: none;
+	letter-spacing: 0;
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+
+	animation: bff-unfold 320ms var(--bff-ease-out) both;
+}
+
+/* The scan line grows up into the band. */
+@keyframes bff-unfold {
+	from {
+		clip-path: inset(calc(100% - 2px) 0 0 0);
+	}
+	to {
+		clip-path: inset(0 0 0 0);
+	}
+}
+
+.bff-badge__main {
+	flex: none;
+	font-weight: 700;
+	font-size: 11px;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+
+.bff-badge__detail {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	font-weight: 500;
+	color: var(--bff-ink-soft);
+}
+
+/* Paid release that gives some tracks away: same band, dark sleeve. */
+.bff-badge--partial {
+	background: var(--bff-sleeve);
+	color: var(--bff-sticker);
+	box-shadow:
+		0 -1px 0 rgb(62 224 127 / 0.45),
+		0 -4px 12px -6px rgb(0 0 0 / 0.6);
+}
+
+.bff-badge--partial .bff-badge__detail,
+.bff-badge__short {
+	color: var(--bff-sleeve-text);
+}
+
+.bff-badge__short {
+	display: none;
+	font-weight: 500;
+}
+
+/* Small covers (sidebars, narrow grids): keep the verdict, drop the detail.
+   A partial band keeps its count, since a bare FREE would misstate it. */
+@container bff-band (max-width: 120px) {
+	.bff-badge__detail {
+		display: none;
+	}
+
+	.bff-badge__short {
+		display: inline;
+	}
+}
+
+/* Check failed (network, rate limit): a still, broken line where the scan
+   ran, so the tile does not pass for a checked paid release. Light and dark
+   dashes keep it visible on any artwork. */
+[data-bff="unknown"] .bff-art::after {
+	content: "";
+	position: absolute;
+	inset: auto 0 0;
+	height: 2px;
+	background: repeating-linear-gradient(
+		90deg,
+		var(--bff-sleeve-text) 0 6px,
+		var(--bff-sleeve) 6px 10px
+	);
+	pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.bff-badge {
+		animation: none;
+	}
+
+	[data-bff="pending"] .bff-art::after {
+		animation: none;
+		background: rgb(62 224 127 / 0.5);
+	}
+}

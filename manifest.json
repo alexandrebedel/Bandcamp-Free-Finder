@@ -1,13 +1,15 @@
 {
 	"manifest_version": 3,
-	"name": "Find free albums on Bandcamp",
-	"description": "Highlight free/name-your-price releases on Bandcamp.",
+	"name": "Bandcamp Free Finder",
+	"description": "Flags free and name-your-price releases on Bandcamp label and artist pages, without opening them.",
 	"version": "1.1.0",
-	"host_permissions": ["*://*.bandcamp.com/music"],
+	"permissions": ["storage"],
+	"host_permissions": ["*://*.bandcamp.com/*"],
 	"content_scripts": [
 		{
 			"matches": ["*://*.bandcamp.com/*"],
 			"js": ["js/content.js"],
+			"css": ["css/badge.css"],
 			"run_at": "document_idle"
 		}
 	],
@@ -15,6 +17,7 @@
 		"default_title": "Bandcamp Free Finder"
 	},
 	"background": {
-		"service_worker": "js/bg.js"
+		"service_worker": "js/bg.js",
+		"type": "module"
 	}
 }
