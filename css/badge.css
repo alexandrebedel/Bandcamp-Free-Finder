@@ -21,7 +21,7 @@
 
 /* A 2px line along the cover's foot: scanning (pending) or check failed
    (unknown, further down). */
-[data-bff="pending"] .bff-art::before,
+[data-bff="pending"].bff-near .bff-art::before,
 [data-bff="pending"] .bff-art::after,
 [data-bff="unknown"] .bff-art::after {
 	content: "";
@@ -31,10 +31,11 @@
 	pointer-events: none;
 }
 
-/* Scan line while the release page is being read: a dim track with a
-   highlight sweeping over it. The sweep moves with transform so hundreds of
-   pending tiles don't repaint every frame. */
-[data-bff="pending"] .bff-art {
+/* Scan line while the release page is being read: a dim track, with a
+   highlight sweeping over it only on covers near the screen (.bff-near, set
+   by the content script), so a big label doesn't run hundreds of animations.
+   The sweep moves with transform, off the paint path. */
+[data-bff="pending"].bff-near .bff-art {
 	overflow: clip;
 }
 
@@ -42,7 +43,7 @@
 	background: rgb(4 21 11 / 0.35);
 }
 
-[data-bff="pending"] .bff-art::before {
+[data-bff="pending"].bff-near .bff-art::before {
 	z-index: 1;
 	right: auto;
 	width: 40%;
@@ -172,7 +173,7 @@
 		animation: none;
 	}
 
-	[data-bff="pending"] .bff-art::before {
+	[data-bff="pending"].bff-near .bff-art::before {
 		display: none;
 	}
 

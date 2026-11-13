@@ -6,6 +6,17 @@
 	// Same path rule as isReleaseUrl in js/verdict.js, which also checks the
 	// host; content scripts can't import modules.
 	const RELEASE_PATH = /\/(album|track)\/[^/]+\/?$/;
+	// How far outside the window a cover still counts as "on screen".
+	const NEAR_PX = 200;
+
+	// Album, track and fan pages have no release grid: do nothing there, not
+	// even watch the page.
+	const grid =
+		document.getElementById("music-grid") ??
+		document.querySelector(TILE_SELECTOR)?.parentElement;
+	if (!grid) {
+		return;
+	}
 
 	const handled = new WeakSet();
 	// Counted by release, not by tile: a release can show up in two tiles.
@@ -18,6 +29,7 @@
 		if (String(err).includes("context invalidated")) {
 			alive = false;
 			observer.disconnect();
+			onScreen.disconnect();
 		}
 		return null;
 	}
@@ -101,7 +113,10 @@
 		art.append(badge);
 	}
 
-	async function check(tile) {
+	// `urgent`: the cover is on screen (or close), so the worker checks it
+	// before the off-screen ones. The others are watched and bumped when they
+	// scroll into view.
+	async function check(tile, urgent) {
 		if (handled.has(tile)) {
 			return;
 		}
@@ -113,8 +128,15 @@
 		handled.add(tile);
 		art.classList.add("bff-art");
 		tile.dataset.bff = "pending";
+		if (urgent) {
+			// Only covers on screen animate their scan line.
+			tile.classList.add("bff-near");
+		} else {
+			onScreen.observe(tile);
+		}
 
-		const verdict = await send({ type: "bff:verdict", url });
+		const verdict = await send({ type: "bff:verdict", url, urgent });
+		onScreen.unobserve(tile);
 		const kind = verdict?.kind ?? "unknown";
 		tile.dataset.bff = kind;
 
@@ -132,25 +154,73 @@
 		}
 	}
 
-	function scan(root) {
-		if (root.matches?.(TILE_SELECTOR)) {
-			check(root);
-		}
-		for (const tile of root.querySelectorAll?.(TILE_SELECTOR) ?? []) {
-			check(tile);
+	function isNearViewport(rect) {
+		return rect.bottom > -NEAR_PX && rect.top < window.innerHeight + NEAR_PX;
+	}
+
+	// Checks a batch of tiles, the ones on screen first so they get the
+	// worker's slots before the rest of the grid.
+	function checkTiles(tiles) {
+		const fresh = tiles.filter((tile) => !handled.has(tile));
+		// Read every position before the first DOM write, so the page lays out
+		// once per batch instead of once per tile.
+		const near = fresh.map((tile) =>
+			isNearViewport(tile.getBoundingClientRect()),
+		);
+		const order = fresh.map((_, i) => i).sort((a, b) => near[b] - near[a]);
+		for (const i of order) {
+			check(fresh[i], near[i]);
 		}
 	}
 
+	// Bandcamp appends the rest of the grid while scrolling: collect every
+	// tile from one batch of mutations and check them together.
 	const observer = new MutationObserver((mutations) => {
+		const added = [];
 		for (const mutation of mutations) {
 			for (const node of mutation.addedNodes) {
 				if (node.nodeType === Node.ELEMENT_NODE) {
-					scan(node);
+					if (node.matches(TILE_SELECTOR)) {
+						added.push(node);
+					}
+					added.push(...node.querySelectorAll(TILE_SELECTOR));
 				}
 			}
 		}
+		if (added.length > 0) {
+			checkTiles(added);
+		}
 	});
 
-	scan(document);
-	observer.observe(document.body, { childList: true, subtree: true });
+	// Off-screen requests wait in page order, so on a big label the covers at
+	// the bottom would wait for the whole grid. When pending covers scroll
+	// into view, they jump the worker's queue, in reading order.
+	const onScreen = new IntersectionObserver(
+		(entries) => {
+			const tiles = entries
+				.filter((e) => e.isIntersecting && e.target.dataset.bff === "pending")
+				.map((e) => e.target)
+				.sort((a, b) =>
+					a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING
+						? -1
+						: 1,
+				);
+			const urls = [];
+			for (const tile of tiles) {
+				onScreen.unobserve(tile);
+				tile.classList.add("bff-near");
+				const url = releaseUrl(tile);
+				if (url) {
+					urls.push(url);
+				}
+			}
+			if (urls.length > 0) {
+				send({ type: "bff:prioritize", urls });
+			}
+		},
+		{ rootMargin: `${NEAR_PX}px 0px` },
+	);
+
+	checkTiles([...grid.querySelectorAll(TILE_SELECTOR)]);
+	observer.observe(grid, { childList: true, subtree: true });
 })();

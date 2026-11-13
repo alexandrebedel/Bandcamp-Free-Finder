@@ -1,53 +1,62 @@
-import { isReleaseUrl, releaseKey, verdictFromHtml } from "./verdict.js";
+import { createQueue } from "./queue.js";
+import {
+	isReleaseUrl,
+	readUntilSaleData,
+	releaseKey,
+	verdictFromHtml,
+} from "./verdict.js";
 
 // Bump when the verdict format or rules change, so stale entries are ignored.
 const CACHE_PREFIX = "v1:";
-const CACHE_TTL_MS = 12 * 60 * 60 * 1000;
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 // Bandcamp answers 429 when a label page fires dozens of requests at once.
 const MAX_CONCURRENT = 3;
 const MAX_RETRIES = 3;
 // A long Retry-After would hold a slot with no extension activity, long
 // enough for Chrome to stop the worker and drop every queued request.
 const MAX_RETRY_WAIT_S = 10;
+// A stalled response would hold its slot forever and freeze the queue, so
+// each attempt times out, and one release gets a total budget across retries.
+const FETCH_TIMEOUT_MS = 20_000;
+const RELEASE_BUDGET_MS = 45_000;
 
 const inflight = new Map();
-const queue = [];
-let active = 0;
+const queue = createQueue(MAX_CONCURRENT);
+// Once Bandcamp answers 429, no slot sends anything before this time: the
+// other slots would only collect more 429s and extend the ban.
+let pausedUntil = 0;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function schedule(task) {
-	return new Promise((resolve, reject) => {
-		queue.push({ task, resolve, reject });
-		pump();
-	});
-}
-
-function pump() {
-	while (active < MAX_CONCURRENT && queue.length > 0) {
-		const { task, resolve, reject } = queue.shift();
-		active++;
-		task()
-			.then(resolve, reject)
-			.finally(() => {
-				active--;
-				pump();
-			});
-	}
-}
-
-async function fetchHtml(url) {
+// Returns the start of the release page, up to the end of its sale data:
+// about a fifth of the page; the rest is never read or parsed.
+async function fetchSaleHtml(url) {
+	const deadline = Date.now() + RELEASE_BUDGET_MS;
 	for (let attempt = 0; ; attempt++) {
-		const res = await fetch(url, { credentials: "omit" });
-		if (res.ok) {
-			return res.text();
+		const pause = pausedUntil - Date.now();
+		if (pause > 0) {
+			if (Date.now() + pause >= deadline) {
+				throw new Error(`Rate limited, gave up on ${url}`);
+			}
+			await sleep(pause);
 		}
+		const res = await fetch(url, {
+			credentials: "omit",
+			signal: AbortSignal.timeout(
+				Math.max(1, Math.min(FETCH_TIMEOUT_MS, deadline - Date.now())),
+			),
+		});
+		if (res.ok) {
+			return readUntilSaleData(res.body);
+		}
+		res.body?.cancel().catch(() => {});
 		if (res.status !== 429 || attempt >= MAX_RETRIES) {
 			throw new Error(`HTTP ${res.status} for ${url}`);
 		}
 		const retryAfter = Number(res.headers.get("retry-after"));
-		const waitS = Math.min(retryAfter || 2 ** attempt * 2, MAX_RETRY_WAIT_S);
-		await sleep(waitS * 1000);
+		const waitMs =
+			Math.min(retryAfter || 2 ** attempt * 2, MAX_RETRY_WAIT_S) * 1000;
+		pausedUntil = Math.max(pausedUntil, Date.now() + waitMs);
 	}
 }
 
@@ -66,20 +75,31 @@ async function writeCache(key, verdict) {
 	});
 }
 
-async function getVerdict(href) {
+// `urgent`: the cover is on screen, so it skips ahead of the off-screen ones.
+async function getVerdict(href, urgent) {
 	const key = releaseKey(href);
 	const cached = await readCache(key);
 	if (cached) {
 		return cached;
 	}
-	if (!inflight.has(key)) {
-		const job = schedule(async () => {
-			const verdict = verdictFromHtml(await fetchHtml(key));
-			if (verdict.kind !== "unknown") {
-				await writeCache(key, verdict);
-			}
-			return verdict;
-		}).finally(() => inflight.delete(key));
+	if (inflight.has(key)) {
+		if (urgent) {
+			queue.prioritize([key]);
+		}
+	} else {
+		const job = queue
+			.add(
+				key,
+				async () => {
+					const verdict = verdictFromHtml(await fetchSaleHtml(key));
+					if (verdict.kind !== "unknown") {
+						await writeCache(key, verdict);
+					}
+					return verdict;
+				},
+				{ urgent },
+			)
+			.finally(() => inflight.delete(key));
 		inflight.set(key, job);
 	}
 	return inflight.get(key);
@@ -112,11 +132,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 			sendResponse({ kind: "unknown" });
 			return false;
 		}
-		getVerdict(msg.url).then(sendResponse, (err) => {
+		getVerdict(msg.url, Boolean(msg.urgent)).then(sendResponse, (err) => {
 			console.warn("[bandcamp-free-finder]", err);
 			sendResponse({ kind: "unknown" });
 		});
 		return true;
+	}
+
+	// Pending covers scrolled into view, in reading order: check them before
+	// the ones off screen.
+	if (msg?.type === "bff:prioritize" && Array.isArray(msg.urls)) {
+		queue.prioritize(msg.urls.filter(isReleaseUrl).map(releaseKey));
+		sendResponse(null);
+		return false;
 	}
 
 	if (msg?.type === "bff:count" && sender.tab?.id !== undefined) {
@@ -136,5 +164,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 					: "Bandcamp Free Finder",
 		});
 	}
+	// Answer every message so the sender's promise never rejects on a closed port.
+	sendResponse(null);
 	return false;
 });
