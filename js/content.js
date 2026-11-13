@@ -9,6 +9,15 @@
 	// How far outside the window a cover still counts as "on screen".
 	const NEAR_PX = 200;
 
+	// Album, track and fan pages have no release grid: do nothing there, not
+	// even watch the page.
+	const grid =
+		document.getElementById("music-grid") ??
+		document.querySelector(TILE_SELECTOR)?.parentElement;
+	if (!grid) {
+		return;
+	}
+
 	const handled = new WeakSet();
 	// Counted by release, not by tile: a release can show up in two tiles.
 	const freeReleases = new Set();
@@ -119,7 +128,10 @@
 		handled.add(tile);
 		art.classList.add("bff-art");
 		tile.dataset.bff = "pending";
-		if (!urgent) {
+		if (urgent) {
+			// Only covers on screen animate their scan line.
+			tile.classList.add("bff-near");
+		} else {
 			onScreen.observe(tile);
 		}
 
@@ -146,27 +158,37 @@
 		return rect.bottom > -NEAR_PX && rect.top < window.innerHeight + NEAR_PX;
 	}
 
-	function scan(root) {
-		const tiles = root.matches?.(TILE_SELECTOR) ? [root] : [];
-		tiles.push(...(root.querySelectorAll?.(TILE_SELECTOR) ?? []));
+	// Checks a batch of tiles, the ones on screen first so they get the
+	// worker's slots before the rest of the grid.
+	function checkTiles(tiles) {
 		const fresh = tiles.filter((tile) => !handled.has(tile));
 		// Read every position before the first DOM write, so the page lays out
-		// once instead of once per tile.
-		const urgent = fresh.map((tile) =>
+		// once per batch instead of once per tile.
+		const near = fresh.map((tile) =>
 			isNearViewport(tile.getBoundingClientRect()),
 		);
-		fresh.forEach((tile, i) => {
-			check(tile, urgent[i]);
-		});
+		const order = fresh.map((_, i) => i).sort((a, b) => near[b] - near[a]);
+		for (const i of order) {
+			check(fresh[i], near[i]);
+		}
 	}
 
+	// Bandcamp appends the rest of the grid while scrolling: collect every
+	// tile from one batch of mutations and check them together.
 	const observer = new MutationObserver((mutations) => {
+		const added = [];
 		for (const mutation of mutations) {
 			for (const node of mutation.addedNodes) {
 				if (node.nodeType === Node.ELEMENT_NODE) {
-					scan(node);
+					if (node.matches(TILE_SELECTOR)) {
+						added.push(node);
+					}
+					added.push(...node.querySelectorAll(TILE_SELECTOR));
 				}
 			}
+		}
+		if (added.length > 0) {
+			checkTiles(added);
 		}
 	});
 
@@ -186,6 +208,7 @@
 			const urls = [];
 			for (const tile of tiles) {
 				onScreen.unobserve(tile);
+				tile.classList.add("bff-near");
 				const url = releaseUrl(tile);
 				if (url) {
 					urls.push(url);
@@ -198,6 +221,6 @@
 		{ rootMargin: `${NEAR_PX}px 0px` },
 	);
 
-	scan(document);
-	observer.observe(document.body, { childList: true, subtree: true });
+	checkTiles([...grid.querySelectorAll(TILE_SELECTOR)]);
+	observer.observe(grid, { childList: true, subtree: true });
 })();

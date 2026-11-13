@@ -16,6 +16,40 @@ export function decodeEntities(text) {
 	});
 }
 
+const TRALBUM_ATTR = 'data-tralbum="';
+
+// Reads a release page's body only until its sale data has arrived (the
+// attribute ends about a fifth into a 250-320 KB page), then cancels the
+// download. Returns everything read so far.
+export async function readUntilSaleData(body) {
+	const reader = body.getReader();
+	const decoder = new TextDecoder();
+	let html = "";
+	let from = 0;
+	try {
+		for (;;) {
+			const { value, done } = await reader.read();
+			if (done) {
+				return html + decoder.decode();
+			}
+			html += decoder.decode(value, { stream: true });
+			const start = html.indexOf(TRALBUM_ATTR, from);
+			if (
+				start !== -1 &&
+				html.indexOf('"', start + TRALBUM_ATTR.length) !== -1
+			) {
+				return html;
+			}
+			// Resume the search where it left off, overlapping the attribute's
+			// length in case it straddles two chunks.
+			from =
+				start !== -1 ? start : Math.max(0, html.length - TRALBUM_ATTR.length);
+		}
+	} finally {
+		reader.cancel().catch(() => {});
+	}
+}
+
 // Every album and track page embeds its full sale data as JSON in a
 // `data-tralbum` attribute on a <script> tag.
 export function extractTralbum(html) {

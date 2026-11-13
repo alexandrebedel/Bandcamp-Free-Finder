@@ -1,38 +1,62 @@
 import { createQueue } from "./queue.js";
-import { isReleaseUrl, releaseKey, verdictFromHtml } from "./verdict.js";
+import {
+	isReleaseUrl,
+	readUntilSaleData,
+	releaseKey,
+	verdictFromHtml,
+} from "./verdict.js";
 
 // Bump when the verdict format or rules change, so stale entries are ignored.
 const CACHE_PREFIX = "v1:";
-const CACHE_TTL_MS = 12 * 60 * 60 * 1000;
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 // Bandcamp answers 429 when a label page fires dozens of requests at once.
 const MAX_CONCURRENT = 3;
 const MAX_RETRIES = 3;
 // A long Retry-After would hold a slot with no extension activity, long
 // enough for Chrome to stop the worker and drop every queued request.
 const MAX_RETRY_WAIT_S = 10;
-// A stalled response would hold its slot forever and freeze the queue.
+// A stalled response would hold its slot forever and freeze the queue, so
+// each attempt times out, and one release gets a total budget across retries.
 const FETCH_TIMEOUT_MS = 20_000;
+const RELEASE_BUDGET_MS = 45_000;
 
 const inflight = new Map();
 const queue = createQueue(MAX_CONCURRENT);
+// Once Bandcamp answers 429, no slot sends anything before this time: the
+// other slots would only collect more 429s and extend the ban.
+let pausedUntil = 0;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function fetchHtml(url) {
+// Returns the start of the release page, up to the end of its sale data:
+// about a fifth of the page; the rest is never read or parsed.
+async function fetchSaleHtml(url) {
+	const deadline = Date.now() + RELEASE_BUDGET_MS;
 	for (let attempt = 0; ; attempt++) {
+		const pause = pausedUntil - Date.now();
+		if (pause > 0) {
+			if (Date.now() + pause >= deadline) {
+				throw new Error(`Rate limited, gave up on ${url}`);
+			}
+			await sleep(pause);
+		}
 		const res = await fetch(url, {
 			credentials: "omit",
-			signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+			signal: AbortSignal.timeout(
+				Math.max(1, Math.min(FETCH_TIMEOUT_MS, deadline - Date.now())),
+			),
 		});
 		if (res.ok) {
-			return res.text();
+			return readUntilSaleData(res.body);
 		}
+		res.body?.cancel().catch(() => {});
 		if (res.status !== 429 || attempt >= MAX_RETRIES) {
 			throw new Error(`HTTP ${res.status} for ${url}`);
 		}
 		const retryAfter = Number(res.headers.get("retry-after"));
-		const waitS = Math.min(retryAfter || 2 ** attempt * 2, MAX_RETRY_WAIT_S);
-		await sleep(waitS * 1000);
+		const waitMs =
+			Math.min(retryAfter || 2 ** attempt * 2, MAX_RETRY_WAIT_S) * 1000;
+		pausedUntil = Math.max(pausedUntil, Date.now() + waitMs);
 	}
 }
 
@@ -67,7 +91,7 @@ async function getVerdict(href, urgent) {
 			.add(
 				key,
 				async () => {
-					const verdict = verdictFromHtml(await fetchHtml(key));
+					const verdict = verdictFromHtml(await fetchSaleHtml(key));
 					if (verdict.kind !== "unknown") {
 						await writeCache(key, verdict);
 					}

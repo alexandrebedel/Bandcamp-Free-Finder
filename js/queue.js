@@ -1,15 +1,15 @@
 // Runs keyed async tasks a few at a time, in arrival order, with an urgent
-// lane at the front for covers the user is looking at, so they don't wait
-// behind the whole grid. Within the lane, tasks keep reading order.
+// lane in front for covers the user is looking at, so they don't wait behind
+// the whole grid. Within the lane, tasks keep reading order.
 
 export function createQueue(maxConcurrent) {
-	// Urgent entries first, then the rest; each entry is { key, urgent, ... }.
-	const waiting = [];
+	const urgent = [];
+	const normal = [];
 	let active = 0;
 
 	function pump() {
-		while (active < maxConcurrent && waiting.length > 0) {
-			const { task, resolve, reject } = waiting.shift();
+		while (active < maxConcurrent && (urgent.length > 0 || normal.length > 0)) {
+			const { task, resolve, reject } = urgent.shift() ?? normal.shift();
 			active++;
 			Promise.resolve()
 				.then(task)
@@ -21,16 +21,20 @@ export function createQueue(maxConcurrent) {
 		}
 	}
 
-	function endOfUrgentLane() {
-		const index = waiting.findIndex((entry) => !entry.urgent);
-		return index === -1 ? waiting.length : index;
+	function take(key) {
+		for (const lane of [urgent, normal]) {
+			const index = lane.findIndex((entry) => entry.key === key);
+			if (index !== -1) {
+				return lane.splice(index, 1)[0];
+			}
+		}
+		return null;
 	}
 
 	return {
-		add(key, task, { urgent = false } = {}) {
+		add(key, task, { urgent: isUrgent = false } = {}) {
 			return new Promise((resolve, reject) => {
-				const entry = { key, task, resolve, reject, urgent };
-				waiting.splice(urgent ? endOfUrgentLane() : waiting.length, 0, entry);
+				(isUrgent ? urgent : normal).push({ key, task, resolve, reject });
 				pump();
 			});
 		},
@@ -39,16 +43,8 @@ export function createQueue(maxConcurrent) {
 		// covers that just scrolled into view). Running or unknown keys are
 		// skipped. Returns how many moved.
 		prioritize(keys) {
-			const moved = [];
-			for (const key of keys) {
-				const index = waiting.findIndex((entry) => entry.key === key);
-				if (index !== -1) {
-					const [entry] = waiting.splice(index, 1);
-					entry.urgent = true;
-					moved.push(entry);
-				}
-			}
-			waiting.unshift(...moved);
+			const moved = keys.map(take).filter(Boolean);
+			urgent.unshift(...moved);
 			return moved.length;
 		},
 	};
