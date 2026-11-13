@@ -6,6 +6,9 @@ const CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 // Bandcamp answers 429 when a label page fires dozens of requests at once.
 const MAX_CONCURRENT = 3;
 const MAX_RETRIES = 3;
+// A long Retry-After would hold a slot with no extension activity, long
+// enough for Chrome to stop the worker and drop every queued request.
+const MAX_RETRY_WAIT_S = 10;
 
 const inflight = new Map();
 const queue = [];
@@ -43,7 +46,8 @@ async function fetchHtml(url) {
 			throw new Error(`HTTP ${res.status} for ${url}`);
 		}
 		const retryAfter = Number(res.headers.get("retry-after"));
-		await sleep((retryAfter || 2 ** attempt * 2) * 1000);
+		const waitS = Math.min(retryAfter || 2 ** attempt * 2, MAX_RETRY_WAIT_S);
+		await sleep(waitS * 1000);
 	}
 }
 
@@ -81,13 +85,16 @@ async function getVerdict(href) {
 	return inflight.get(key);
 }
 
+// Drops expired verdicts and those from older cache versions, and leaves
+// any other key in storage alone.
 async function pruneCache() {
 	const all = await chrome.storage.local.get(null);
 	const stale = Object.entries(all)
 		.filter(
 			([k, v]) =>
-				!k.startsWith(CACHE_PREFIX) ||
-				Date.now() - (v?.at ?? 0) >= CACHE_TTL_MS,
+				/^v\d+:/.test(k) &&
+				(!k.startsWith(CACHE_PREFIX) ||
+					Date.now() - (v?.at ?? 0) >= CACHE_TTL_MS),
 		)
 		.map(([k]) => k);
 	if (stale.length > 0) {
@@ -99,7 +106,12 @@ chrome.runtime.onInstalled.addListener(pruneCache);
 chrome.runtime.onStartup.addListener(pruneCache);
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-	if (msg?.type === "bff:verdict" && isReleaseUrl(msg.url)) {
+	if (msg?.type === "bff:verdict") {
+		if (!isReleaseUrl(msg.url)) {
+			// e.g. a label grid linking to an artist's custom domain.
+			sendResponse({ kind: "unknown" });
+			return false;
+		}
 		getVerdict(msg.url).then(sendResponse, (err) => {
 			console.warn("[bandcamp-free-finder]", err);
 			sendResponse({ kind: "unknown" });

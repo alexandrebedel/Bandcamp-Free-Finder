@@ -51,8 +51,12 @@ export function verdictFromTralbum(tralbum) {
 	const totalTracks = tracks.length;
 
 	// minimum_price is null for releases that are not sold as downloads
-	// (streaming only, physical only), so only an explicit 0 means free.
-	if (current.minimum_price === 0) {
+	// (streaming only, physical only), so only an explicit 0 means free. Tracks
+	// can also have downloads switched off (streaming only, pre-order) while
+	// the price still reads 0: those are not free to download either.
+	const downloadable =
+		tracks.length === 0 || tracks.some((t) => t?.is_downloadable !== false);
+	if (current.minimum_price === 0 && downloadable) {
 		return {
 			kind: "free",
 			mode: current.set_price === 0 ? "free" : "nyp",
@@ -81,9 +85,18 @@ export function releaseKey(href) {
 	return `${url.origin}${url.pathname}`.replace(/\/$/, "");
 }
 
+// The service worker only fetches Bandcamp release pages over https: the URL
+// comes from the page's DOM, so it must not be able to point anywhere else.
+// js/content.js mirrors the path rule (content scripts can't import modules).
 export function isReleaseUrl(href) {
 	try {
-		return /\/(album|track)\/[^/]+\/?$/.test(new URL(href).pathname);
+		const url = new URL(href);
+		return (
+			url.protocol === "https:" &&
+			(url.hostname === "bandcamp.com" ||
+				url.hostname.endsWith(".bandcamp.com")) &&
+			/\/(album|track)\/[^/]+\/?$/.test(url.pathname)
+		);
 	} catch {
 		return false;
 	}

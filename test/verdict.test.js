@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
 	decodeEntities,
@@ -82,6 +83,44 @@ test("release not sold as a download is not free", () => {
 	assert.equal(v.kind, "paid");
 });
 
+test("0 minimum with downloads switched off is not free", () => {
+	const v = verdictFromTralbum({
+		current: { minimum_price: 0, set_price: 9 },
+		trackinfo: [
+			track({ is_downloadable: false }),
+			track({ is_downloadable: false }),
+		],
+	});
+	assert.equal(v.kind, "paid");
+});
+
+test("0 minimum stays free when Bandcamp omits is_downloadable", () => {
+	const v = verdictFromTralbum({
+		current: { minimum_price: 0, set_price: 9 },
+		trackinfo: [{ title: "t" }],
+	});
+	assert.equal(v.kind, "free");
+});
+
+// Trimmed from real pages (freshtakerecords.bandcamp.com, 2026-11-13): the
+// data-tralbum attribute exactly as Bandcamp escapes it.
+for (const [file, expected] of [
+	["nyp-album.html", { kind: "free", mode: "nyp", email: false }],
+	["email-album.html", { kind: "free", mode: "nyp", email: true }],
+	["paid-album.html", { kind: "paid" }],
+]) {
+	test(`real page: ${file}`, () => {
+		const html = readFileSync(
+			new URL(`fixtures/${file}`, import.meta.url),
+			"utf8",
+		);
+		const v = verdictFromHtml(html);
+		for (const [k, value] of Object.entries(expected)) {
+			assert.equal(v[k], value, `${file}: ${k}`);
+		}
+	});
+}
+
 test("pages without sale data are unknown", () => {
 	assert.equal(extractTralbum("<html></html>"), null);
 	assert.deepEqual(verdictFromHtml("<html></html>"), { kind: "unknown" });
@@ -107,4 +146,12 @@ test("only album and track pages are releases", () => {
 	assert.ok(!isReleaseUrl("https://a.bandcamp.com/music"));
 	assert.ok(!isReleaseUrl("https://a.bandcamp.com/merch/shirt"));
 	assert.ok(!isReleaseUrl("not a url"));
+});
+
+test("only https Bandcamp hosts are fetched", () => {
+	assert.ok(!isReleaseUrl("http://a.bandcamp.com/album/x"));
+	assert.ok(!isReleaseUrl("http://127.0.0.1:8080/album/x"));
+	assert.ok(!isReleaseUrl("https://a.bandcamp.com.evil.example/album/x"));
+	assert.ok(!isReleaseUrl("https://evilbandcamp.com/album/x"));
+	assert.ok(!isReleaseUrl("https://music.custom-domain.example/album/x"));
 });

@@ -3,25 +3,35 @@
 	// first batch server-side and appends the rest from `data-client-items`
 	// while scrolling, so new tiles are picked up by the observer below.
 	const TILE_SELECTOR = "li.music-grid-item";
+	// Same path rule as isReleaseUrl in js/verdict.js, which also checks the
+	// host; content scripts can't import modules.
 	const RELEASE_PATH = /\/(album|track)\/[^/]+\/?$/;
 
 	const handled = new WeakSet();
-	let freeCount = 0;
+	// Counted by release, not by tile: a release can show up in two tiles.
+	const freeReleases = new Set();
 	let alive = true;
 
-	function send(message) {
-		if (!alive) {
-			return Promise.resolve(null);
+	function goQuiet(err) {
+		// The extension was reloaded or updated: this copy of the script is
+		// orphaned and must stop.
+		if (String(err).includes("context invalidated")) {
+			alive = false;
+			observer.disconnect();
 		}
-		return chrome.runtime.sendMessage(message).catch((err) => {
-			// The extension was reloaded or updated: this copy of the script is
-			// orphaned and must go quiet.
-			if (String(err).includes("context invalidated")) {
-				alive = false;
-				observer.disconnect();
-			}
+		return null;
+	}
+
+	async function send(message) {
+		if (!alive) {
 			return null;
-		});
+		}
+		try {
+			// An orphaned script throws here synchronously instead of rejecting.
+			return await chrome.runtime.sendMessage(message);
+		} catch (err) {
+			return goQuiet(err);
+		}
 	}
 
 	function releaseUrl(tile) {
@@ -114,9 +124,10 @@
 		}
 		if (kind === "free" || kind === "partial") {
 			renderBadge(art, verdict);
-			if (kind === "free") {
-				freeCount++;
-				send({ type: "bff:count", count: freeCount });
+			const release = url.split(/[?#]/)[0].replace(/\/$/, "");
+			if (kind === "free" && !freeReleases.has(release)) {
+				freeReleases.add(release);
+				send({ type: "bff:count", count: freeReleases.size });
 			}
 		}
 	}

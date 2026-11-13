@@ -19,30 +19,49 @@
 	position: relative;
 }
 
-/* Scan line while the release page is being read. */
-[data-bff="pending"] .bff-art::after {
+/* A 2px line along the cover's foot: scanning (pending) or check failed
+   (unknown, further down). */
+[data-bff="pending"] .bff-art::before,
+[data-bff="pending"] .bff-art::after,
+[data-bff="unknown"] .bff-art::after {
 	content: "";
 	position: absolute;
 	inset: auto 0 0;
 	height: 2px;
-	background:
-		linear-gradient(90deg, transparent, var(--bff-sticker) 50%, transparent) 0 0
-		/ 40% 100% no-repeat,
-		rgb(4 21 11 / 0.35);
-	animation: bff-scan 1.4s linear infinite;
 	pointer-events: none;
+}
+
+/* Scan line while the release page is being read: a dim track with a
+   highlight sweeping over it. The sweep moves with transform so hundreds of
+   pending tiles don't repaint every frame. */
+[data-bff="pending"] .bff-art {
+	overflow: clip;
+}
+
+[data-bff="pending"] .bff-art::after {
+	background: rgb(4 21 11 / 0.35);
+}
+
+[data-bff="pending"] .bff-art::before {
+	z-index: 1;
+	right: auto;
+	width: 40%;
+	background: linear-gradient(
+		90deg,
+		transparent,
+		var(--bff-sticker) 50%,
+		transparent
+	);
+	transform: translateX(-100%);
+	animation: bff-scan 1.4s linear infinite;
 }
 
 @keyframes bff-scan {
 	from {
-		background-position:
-			-60% 0,
-			0 0;
+		transform: translateX(-100%);
 	}
 	to {
-		background-position:
-			160% 0,
-			0 0;
+		transform: translateX(250%);
 	}
 }
 
@@ -141,16 +160,11 @@
    ran, so the tile does not pass for a checked paid release. Light and dark
    dashes keep it visible on any artwork. */
 [data-bff="unknown"] .bff-art::after {
-	content: "";
-	position: absolute;
-	inset: auto 0 0;
-	height: 2px;
 	background: repeating-linear-gradient(
 		90deg,
 		var(--bff-sleeve-text) 0 6px,
 		var(--bff-sleeve) 6px 10px
 	);
-	pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -158,8 +172,11 @@
 		animation: none;
 	}
 
+	[data-bff="pending"] .bff-art::before {
+		display: none;
+	}
+
 	[data-bff="pending"] .bff-art::after {
-		animation: none;
 		background: rgb(62 224 127 / 0.5);
 	}
 }
