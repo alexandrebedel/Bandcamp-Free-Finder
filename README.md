@@ -25,10 +25,10 @@ js/
   content.js            content script entry: imports js/content/main.js
   shared/verdict.js     what a release page says about its price; release URLs
   worker/
-    verdicts.js         cache, then a queue of page reads; one read per release
-    queue.js            3 at a time, on-screen covers first
+    verdicts.js         cache, then a queue per host; one read per release
+    queue.js            a few at a time, on-screen covers first
     sale-page.js        reads a page up to its sale data; timeouts, retries
-    pace.js             spacing per Bandcamp host, pauses after a 429
+    pace.js             per-host budget (burst, then spaced), pauses after a 429
     cache.js            24 h cache in chrome.storage.local
     toolbar.js          the count on the toolbar icon
   content/
@@ -49,7 +49,7 @@ Content scripts can't be ES modules, so `js/content.js` loads `js/content/main.j
 To stay light and polite with Bandcamp:
 
 - covers on screen are checked first; on a big label, a cover you scroll past is only checked once it stays on screen for 300 ms;
-- requests to one Bandcamp host are spaced out, 3 at a time at most;
+- each Bandcamp host gets its own queue and budget: a burst of 12 requests (a screenful), then 4 per second, 3 at a time;
 - each page is read only up to its sale data (about a fifth of it), then the read stops;
 - on HTTP 429 that host pauses, 2 s then twice as long each time up to 30 s, and resumes one request at a time; the strip says "waiting for Bandcamp";
 - verdicts are cached for 24 hours in `chrome.storage.local`, so a label you revisit costs no requests;

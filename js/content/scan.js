@@ -1,19 +1,25 @@
 // Checks release tiles with the service worker without hammering Bandcamp:
 // the tiles on screen when the page opens, then the ones you stop on while
-// scrolling, and every tile only when checkAll() is called. Tiles Bandcamp
-// appends later go through the same rules. Tile state lives in data-bff
-// (pending, free, partial, paid, unknown; none yet = not checked), which the
-// CSS reads.
+// scrolling, and every tile only when checkAll() is called. Tile state lives
+// in data-bff (pending, free, partial, paid, unknown; none yet = not
+// checked), which the CSS reads.
 
 import { onOrphaned, send } from "./messages.js";
-import { isNearViewport, NEAR_PX, releaseUrl, TILE_SELECTOR } from "./tiles.js";
+import {
+	inPageOrder,
+	isNearViewport,
+	NEAR_PX,
+	releaseUrl,
+	TILE_SELECTOR,
+} from "./tiles.js";
 
 // How long a tile has to stay on screen before it's checked, so scrolling
 // fast through a 400-release label doesn't fire 400 requests.
 const DWELL_MS = 300;
-
-const inPageOrder = (a, b) =>
-	a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+// Check all sends this many requests at a time and refills as answers come,
+// so no request waits long in the worker (Chrome gives a message about five
+// minutes to be answered).
+const CHECK_ALL_WINDOW = 8;
 
 // onFound(count) when tiles are seen, onStart(tile) when one is sent,
 // onResult(tile, url, verdict) when it's answered.
@@ -22,13 +28,18 @@ export function scanGrid(grid, { onFound, onStart, onResult }) {
 	const sent = new WeakSet();
 	const tiles = [];
 	const dwell = new Map();
+	// Check all: the tiles still to send, in page order.
+	const backlog = [];
 	let checkingAll = false;
+	let backlogInFlight = 0;
 
 	async function check(tile, urgent) {
 		if (sent.has(tile)) {
 			return;
 		}
 		sent.add(tile);
+		clearTimeout(dwell.get(tile));
+		dwell.delete(tile);
 		const url = releaseUrl(tile);
 		tile.dataset.bff = "pending";
 		if (urgent) {
@@ -45,7 +56,23 @@ export function scanGrid(grid, { onFound, onStart, onResult }) {
 		onResult(tile, url, verdict);
 	}
 
-	function add(candidates) {
+	function pumpBacklog() {
+		while (backlogInFlight < CHECK_ALL_WINDOW && backlog.length > 0) {
+			const tile = backlog.shift();
+			if (sent.has(tile)) {
+				continue;
+			}
+			backlogInFlight++;
+			check(tile, false).finally(() => {
+				backlogInFlight--;
+				pumpBacklog();
+			});
+		}
+	}
+
+	// `initial`: tiles on screen when the page opens are checked at once;
+	// anything else waits until it stays in view (or for Check all).
+	function add(candidates, { initial = false } = {}) {
 		const fresh = candidates.filter(
 			(tile) =>
 				!known.has(tile) && releaseUrl(tile) && tile.querySelector(".art"),
@@ -55,7 +82,7 @@ export function scanGrid(grid, { onFound, onStart, onResult }) {
 		}
 		// Read every position before the first DOM write, so the page lays out
 		// once per batch instead of once per tile.
-		const near = fresh.map(isNearViewport);
+		const near = initial ? fresh.map(isNearViewport) : [];
 		for (const tile of fresh) {
 			known.add(tile);
 			tile.querySelector(".art").classList.add("bff-art");
@@ -63,17 +90,17 @@ export function scanGrid(grid, { onFound, onStart, onResult }) {
 		tiles.push(...fresh);
 		onFound(fresh.length);
 
-		// On screen first, then the rest: checked now when checking all,
-		// otherwise watched until they come into view.
-		fresh.forEach((tile, i) => near[i] && check(tile, true));
 		fresh.forEach((tile, i) => {
-			if (!near[i]) {
-				if (checkingAll) {
-					check(tile, false);
-				}
+			if (near[i]) {
+				check(tile, true);
+			} else {
 				watch.observe(tile);
+				if (checkingAll) {
+					backlog.push(tile);
+				}
 			}
 		});
+		pumpBacklog();
 	}
 
 	// A tile in view: checked once it stays there for DWELL_MS, or, if it's
@@ -90,11 +117,10 @@ export function scanGrid(grid, { onFound, onStart, onResult }) {
 					tile.classList.add("bff-near");
 					bump.push(tile);
 				} else if (!dwell.has(tile)) {
-					const timer = setTimeout(() => {
-						dwell.delete(tile);
-						check(tile, true);
-					}, DWELL_MS);
-					dwell.set(tile, timer);
+					dwell.set(
+						tile,
+						setTimeout(() => check(tile, true), DWELL_MS),
+					);
 				}
 			}
 			const urls = bump.sort(inPageOrder).map(releaseUrl);
@@ -127,22 +153,19 @@ export function scanGrid(grid, { onFound, onStart, onResult }) {
 		for (const timer of dwell.values()) {
 			clearTimeout(timer);
 		}
+		backlog.length = 0;
 	});
 
-	add([...grid.querySelectorAll(TILE_SELECTOR)]);
+	add([...grid.querySelectorAll(TILE_SELECTOR)], { initial: true });
 	appended.observe(grid, { childList: true, subtree: true });
 
 	return {
-		// Every tile not checked yet, in page order, behind the on-screen ones.
+		// Every tile not checked yet, in page order, a few at a time, behind
+		// the on-screen ones.
 		checkAll() {
 			checkingAll = true;
-			for (const tile of tiles) {
-				if (!sent.has(tile)) {
-					clearTimeout(dwell.get(tile));
-					dwell.delete(tile);
-					check(tile, false);
-				}
-			}
+			backlog.push(...tiles.filter((tile) => !sent.has(tile)));
+			pumpBacklog();
 		},
 	};
 }

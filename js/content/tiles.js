@@ -36,6 +36,13 @@ export function releaseId(url) {
 	return url.split(/[?#]/)[0].replace(/\/$/, "");
 }
 
+// Sort comparator: a before b when a comes first in the page.
+export function inPageOrder(a, b) {
+	return a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING
+		? -1
+		: 1;
+}
+
 export function isNearViewport(tile) {
 	const rect = tile.getBoundingClientRect();
 	return rect.bottom > -NEAR_PX && rect.top < window.innerHeight + NEAR_PX;

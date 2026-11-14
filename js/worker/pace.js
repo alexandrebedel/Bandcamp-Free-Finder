@@ -1,12 +1,15 @@
 // How fast the worker may hit each Bandcamp host. Bandcamp rate-limits per
-// subdomain (a label and all the releases it hosts share one), so requests
-// to a host are spaced out, and a 429 pauses that host only.
+// subdomain (a label and all the releases it hosts share one), so each host
+// gets its own budget, and a 429 pauses that host only.
 //
-// After a 429 the pause doubles with each one in a row (2, 4, 8, 16, then
-// 30 s), and the spacing doubles too. Once the pause ends, requests resume
-// one at a time, so a single request finds out whether the limit is over.
-// Successes bring the spacing back down.
+// The budget is a token bucket: a burst of 12 requests (a screenful of
+// covers goes out at once), then one per `spacing`. After a 429 the host
+// pauses (2 s, then twice as long with each new pause, up to 30 s), the
+// spacing doubles, and the bucket empties, so requests resume one at a
+// time and the first one finds out whether the limit is over. Successes
+// bring the spacing back down.
 
+const BURST = 12;
 const MIN_SPACING_MS = 250;
 const MAX_SPACING_MS = 4_000;
 const FIRST_PAUSE_MS = 2_000;
@@ -20,12 +23,14 @@ const hosts = new Map();
 function stateOf(host) {
 	let state = hosts.get(host);
 	if (!state) {
-		// `line`: the turns given out so far, chained so they go first come,
-		// first served (the worker's queue already put them in the right order).
 		state = {
-			nextAt: 0,
+			tokens: BURST,
+			refilledAt: Date.now(),
 			spacing: MIN_SPACING_MS,
+			pausedUntil: 0,
 			strikes: 0,
+			// The turns given out so far, chained so they go first come, first
+			// served (the worker's queue already put them in the right order).
 			line: Promise.resolve(),
 		};
 		hosts.set(host, state);
@@ -45,17 +50,33 @@ async function nap(ms) {
 	}
 }
 
+function refill(state) {
+	const now = Date.now();
+	state.tokens = Math.min(
+		BURST,
+		state.tokens + (now - state.refilledAt) / state.spacing,
+	);
+	state.refilledAt = now;
+}
+
 // Resolves when it's this caller's turn to send a request to `host`, in the
 // order callers asked.
 export function waitTurn(host) {
 	const state = stateOf(host);
 	const turn = state.line.then(async () => {
-		// Re-read after each nap: a 429 meanwhile pushes nextAt further.
-		for (let wait = state.nextAt - Date.now(); wait > 0; ) {
-			await nap(wait);
-			wait = state.nextAt - Date.now();
+		for (;;) {
+			const paused = state.pausedUntil - Date.now();
+			if (paused > 0) {
+				await nap(paused);
+				continue;
+			}
+			refill(state);
+			if (state.tokens >= 1) {
+				state.tokens -= 1;
+				return;
+			}
+			await nap((1 - state.tokens) * state.spacing);
 		}
-		state.nextAt = Date.now() + state.spacing;
 	});
 	state.line = turn;
 	return turn;
@@ -69,14 +90,20 @@ export function succeeded(host) {
 
 export function rateLimited(host, retryAfterS) {
 	const state = stateOf(host);
+	const now = Date.now();
+	const retryAfterMs = (retryAfterS || 0) * 1000;
+	// Requests already in flight come back 429 together: one pause for them.
+	if (now < state.pausedUntil) {
+		state.pausedUntil = Math.max(state.pausedUntil, now + retryAfterMs);
+		return;
+	}
 	state.strikes++;
 	state.spacing = Math.min(MAX_SPACING_MS, state.spacing * 2);
+	state.tokens = 0;
+	state.refilledAt = now;
 	const pause = Math.min(
 		MAX_PAUSE_MS,
-		Math.max(
-			FIRST_PAUSE_MS * 2 ** (state.strikes - 1),
-			(retryAfterS || 0) * 1000,
-		),
+		Math.max(FIRST_PAUSE_MS * 2 ** (state.strikes - 1), retryAfterMs),
 	);
-	state.nextAt = Math.max(state.nextAt, Date.now() + pause);
+	state.pausedUntil = now + pause;
 }

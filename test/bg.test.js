@@ -143,38 +143,43 @@ test("a cached verdict is answered without fetching", async () => {
 	assert.deepEqual(fetched, []);
 });
 
-// Last: it leaves the host paused for a couple of seconds.
-test("a 429 pauses that host: nothing else goes out until the pause ends", async () => {
+const on = (host, name) => `https://${host}.bandcamp.com/album/${name}`;
+const since = (t0, u) => fetchedAt.find(([v]) => v === u)[1] - t0;
+
+test("a burst of 12 goes out at once, then requests are spaced", async () => {
 	fetchedAt.length = 0;
-	rateLimitOnce.add("https://label.bandcamp.com/album/r1");
 	const t0 = Date.now();
-	const names = ["r1", "r2", "r3", "r4"];
-	const verdicts = await Promise.all(
-		names.map((n) => ask({ type: "bff:verdict", url: url(n) })),
-	);
-	assert.ok(verdicts.every((v) => v.kind === "free"));
-	const at = fetchedAt.map(
-		([u, t]) => `${path(u)}@${t - t0 < 1500 ? "now" : "later"}`,
-	);
-	// r1 got a 429 (Retry-After: 1, so the 2 s minimum pause). Nothing went
-	// out before the pause ended; then r2 and r3, already in line, went
-	// before r1's retry, then r4.
-	assert.deepEqual(at, [
-		"r1@now",
-		"r2@later",
-		"r3@later",
-		"r1@later",
-		"r4@later",
-	]);
+	const urls = Array.from({ length: 13 }, (_, i) => on("burst", `b${i}`));
+	await Promise.all(urls.map((u) => ask({ type: "bff:verdict", url: u })));
+	assert.ok(since(t0, urls[11]) < 150, "12th sent within the burst");
+	assert.ok(since(t0, urls[12]) >= 200, "13th waited for a token");
 });
 
-test("another host is not paused by that 429", async () => {
+test("a 429 pauses that host only, and in-flight 429s count once", async () => {
 	fetchedAt.length = 0;
+	rateLimitOnce.add(on("paused", "p1"));
+	rateLimitOnce.add(on("paused", "p2"));
 	const t0 = Date.now();
-	const verdict = await ask({
-		type: "bff:verdict",
-		url: "https://other-label.bandcamp.com/album/x",
-	});
-	assert.equal(verdict.kind, "free");
-	assert.ok(fetchedAt[0][1] - t0 < 200, "sent right away");
+	const paused = ["p1", "p2", "p3"].map((n) =>
+		ask({ type: "bff:verdict", url: on("paused", n) }),
+	);
+	// Give p1 and p2 time to come back 429 before the other host asks.
+	await new Promise((resolve) => setTimeout(resolve, 50));
+	const other = await ask({ type: "bff:verdict", url: on("calm", "c1") });
+	assert.equal(other.kind, "free");
+	assert.ok(since(t0, on("calm", "c1")) < 300, "other host not held up");
+
+	const verdicts = await Promise.all(paused);
+	assert.ok(verdicts.every((v) => v.kind === "free"));
+	// p1 and p2 were in flight together: one 2 s pause, not 2 s then 4 s.
+	const retries = fetchedAt
+		.filter(([u]) => u.includes("paused.bandcamp.com"))
+		.slice(3)
+		.map(([, t]) => t - t0);
+	assert.ok(retries.length >= 2);
+	assert.ok(retries[0] >= 1900, `retry at ${retries[0]} ms, after the pause`);
+	assert.ok(
+		retries[0] < 3500,
+		`retry at ${retries[0]} ms, not a doubled pause`,
+	);
 });

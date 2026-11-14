@@ -4,7 +4,7 @@
 // the other N" (on big labels only what's on screen is checked by default)
 // and a "Free only" view of the grid.
 
-import { describeTile } from "./tiles.js";
+import { describeTile, inPageOrder } from "./tiles.js";
 
 // Where `item` goes in `sorted` to keep it ordered: before the first entry
 // it precedes.
@@ -13,10 +13,7 @@ export function insertionIndex(sorted, item, precedes) {
 	return index === -1 ? sorted.length : index;
 }
 
-const comesBefore = (a, b) =>
-	Boolean(
-		a.tile.compareDocumentPosition(b.tile) & Node.DOCUMENT_POSITION_FOLLOWING,
-	);
+const comesBefore = (a, b) => inPageOrder(a.tile, b.tile) < 0;
 
 function el(tag, className, text) {
 	const node = document.createElement(tag);
