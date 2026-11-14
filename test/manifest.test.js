@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const manifest = JSON.parse(
@@ -29,4 +29,34 @@ test("store listing limits", () => {
 		manifest.description.length <= 132,
 		"Chrome Web Store: description up to 132",
 	);
+});
+
+// The Chrome Web Store takes 1280x800 (or 640x400) screenshots, as JPEG or
+// 24-bit PNG without alpha.
+test("store screenshots are 1280x800 PNGs without alpha", () => {
+	const dir = new URL("../store/screenshots/", import.meta.url);
+	const shots = existsSync(dir)
+		? readdirSync(dir).filter((f) => f.endsWith(".png"))
+		: [];
+	for (const shot of shots) {
+		const path = `store/screenshots/${shot}`;
+		assert.deepEqual(pngSize(path), [1280, 800], shot);
+		const png = readFileSync(new URL(`../${path}`, import.meta.url));
+		assert.equal(png[24], 8, `${shot}: 8 bits per channel`);
+		assert.equal(png[25], 2, `${shot}: RGB, no alpha`);
+	}
+});
+
+test("every image the README shows exists", () => {
+	const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
+	const paths = [
+		...readme.matchAll(/!\[[^\]]*\]\(([^)\s]+)\)/g),
+		...readme.matchAll(/<img[^>]*src="([^"]+)"/g),
+	]
+		.map((m) => m[1])
+		.filter((path) => !/^https?:/.test(path));
+	assert.ok(paths.length >= 4, `found ${paths.length} images`);
+	for (const path of paths) {
+		assert.ok(existsSync(new URL(`../${path}`, import.meta.url)), path);
+	}
 });

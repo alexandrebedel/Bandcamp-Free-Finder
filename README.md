@@ -1,24 +1,56 @@
-# Free Download Finder for Bandcamp
+<p align="center"><img src="icons/icon-128.png" width="96" alt=""></p>
 
-Spot free downloads and name-your-price releases on Bandcamp label and artist pages, without opening each album.
+<h1 align="center">Free Download Finder for Bandcamp</h1>
 
-A Chrome extension (Manifest V3). Not affiliated with Bandcamp.
+<p align="center">Spot free downloads and name-your-price releases on Bandcamp label and artist pages, without opening each album.</p>
 
-On `/` and `/music` pages, release tiles get checked in the background: the whole grid on labels of up to 100 releases, and on bigger ones only the covers you look at, plus everything once you click **Check the other N** (Bandcamp limits requests per label, and a big label alone can hit that limit). Free covers get a green band at the bottom:
+![The free list above the grid of the RAW label on Bandcamp](store/screenshots/1-free-list.png)
+
+## What it does
+
+Open a label or artist page on Bandcamp: the extension checks the releases in the background and shows you which ones you can download for free.
+
+**A band on every free cover.** Free releases get a green band at the bottom of their cover, saying how they're free.
 
 | Band | Meaning |
 | --- | --- |
-| **FREE** · name your price | Minimum price is 0: enter 0 at checkout |
+| **FREE** · name your price | The minimum price is 0: enter 0 at checkout |
 | **FREE** · with email | Free download, Bandcamp asks for an email address |
-| **FREE** (dark band) · 2 of 5 tracks | Paid release, but some tracks are free on their own |
+| **FREE** · 2 of 5 tracks (dark band) | A paid release with some tracks free on their own |
 
-Above the grid, a strip lists the free releases of the page in page order as they're found, with how much of the grid is checked. Its **Free only** button hides the releases known to be paid (until you click it again). On a small label the strip only appears when there is at least one free release; on a big one it's there from the start, with **Check the other N**.
+![Green bands on the free covers of a grid](store/screenshots/2-bands-on-covers.png)
 
-The toolbar icon shows how many free releases are on the current tab. Paid releases are left untouched unless you turn on **Free only**.
+**The free list.** A strip above the grid lists the free releases in page order, as they're found, with how much of the grid is checked. The toolbar icon shows the count for the tab.
+
+**Free only.** One click hides the releases known to be paid, so only the free ones (and the ones not checked yet) remain.
+
+![The grid with Free only turned on](store/screenshots/3-free-only.png)
+
+**Big labels too.** Labels of up to 100 releases are checked in full. On bigger ones, the extension checks the covers you look at, and **Check the other N** in the strip does the rest, at a pace Bandcamp accepts.
+
+## Install
+
+Until it's on the Chrome Web Store, load it unpacked:
+
+1. Open `chrome://extensions` and turn on **Developer mode**.
+2. Click **Load unpacked** and pick this folder.
+3. Open a label page, like `https://<label>.bandcamp.com/music`.
+
+After an update, click the reload icon on the extension's card, then reload the Bandcamp tab.
+
+## Good to know
+
+- **Private.** No account, no analytics: the extension only talks to Bandcamp release pages (without your cookies) and keeps its answers on your computer for 24 hours. Bandcamp pages can tell it's installed, because the page-side code is loaded from the extension.
+- **Light on Bandcamp.** On-screen covers first, a few requests at a time per label, a pause when Bandcamp asks for one (the strip then says "waiting for Bandcamp"), and no work at all on album, track or fan pages.
+- **Limits.** Only `*.bandcamp.com` pages (labels on their own domain aren't covered), and only the release grid, not the discography sidebar or the recommendations.
+- Not affiliated with Bandcamp.
 
 ## How it works
 
-Every album and track page embeds its sale data as JSON in a `data-tralbum` attribute. The service worker reads it from each release page (`current.minimum_price`, `current.require_email`, `trackinfo[].has_free_download`) and answers the content script, which draws the band and the list.
+Every Bandcamp album and track page carries its sale data as JSON in a `data-tralbum` attribute. The service worker reads each release page up to that attribute (about a fifth of the page) and looks at `current.minimum_price`, `current.require_email` and `trackinfo[].has_free_download`. The content script draws the band and the list from its answers.
+
+<details>
+<summary>Project layout</summary>
 
 ```
 manifest.json
@@ -40,45 +72,32 @@ js/
     band.js             the band on a free cover
     free-list.js        the strip above the grid
     messages.js         messages to the worker; stops when orphaned
-icons/
-  src/icon-*.svg        icon sources, one per size (16 and 32 drop the record)
-  icon-*.png            what the manifest and the stores use
 css/
   tokens.css            shared colours and easing
   band.css              the band and the scan line
   free-list.css         the strip and "Free only"
+icons/
+  src/icon-*.svg        icon sources, one per size (16 and 32 drop the record)
+  icon-*.png            what the manifest and the stores use
+store/screenshots/      Chrome Web Store screenshots, 1280x800
 ```
 
-Content scripts can't be ES modules, so `js/content.js` loads `js/content/main.js` with a dynamic `import()`. That is why `js/content/` and `js/shared/` are listed in the manifest's `web_accessible_resources` (Bandcamp pages can see that these files exist; a test checks every imported module is listed).
+Content scripts can't be ES modules, so `js/content.js` loads `js/content/main.js` with a dynamic `import()`. That's why `js/content/` and `js/shared/` are `web_accessible_resources`; a test checks that every imported module is listed.
 
-To stay light and polite with Bandcamp:
-
-- covers on screen are checked first; on a big label, a cover you scroll past is only checked once it stays on screen for 300 ms;
-- each Bandcamp host gets its own queue and budget: a burst of 12 requests (a screenful), then 4 per second, 3 at a time;
-- each page is read only up to its sale data (about a fifth of it), then the read stops;
-- on HTTP 429 that host pauses, 2 s then twice as long each time up to 30 s, and resumes one request at a time; the strip says "waiting for Bandcamp";
-- verdicts are cached for 24 hours in `chrome.storage.local`, so a label you revisit costs no requests;
-- pages without a release grid (album, track, fan pages) are left alone, and only covers on screen animate.
-
-## Install (unpacked)
-
-1. `chrome://extensions` → enable **Developer mode**
-2. **Load unpacked** → pick this folder
-3. Open a label page, e.g. `https://<label>.bandcamp.com/music`
-
-After changing the code, click the reload icon on the extension card, then reload the Bandcamp tab.
+</details>
 
 ## Development
 
 ```bash
 npm install
-npm test        # verdict rules (node:test)
+npm test        # unit tests (node:test)
 npm run lint    # Biome
 npm run icons   # icons/src/*.svg -> icons/*.png, with headless Chrome
-npm run zip     # free-download-finder-for-bandcamp.zip
+npm run zip     # the package to upload to the store
 ```
 
-## Limits
+Store screenshots are taken by hand, because Bandcamp blocks automated browsers. In Chrome, with the extension loaded: DevTools, device toolbar at 1280x800 (any DPR), then **Capture screenshot**. Cover anything personal (your Bandcamp avatar, top right), then turn the capture into the store's format (1280x800, 24-bit PNG without alpha; a test checks it):
 
-- Only `*.bandcamp.com` pages: labels on a custom domain are not covered.
-- Only the release grid (`li.music-grid-item`), not the discography sidebar or the recommendations.
+```bash
+sh scripts/store-shot.sh ~/Downloads/capture.png 2-bands-on-covers.png
+```
