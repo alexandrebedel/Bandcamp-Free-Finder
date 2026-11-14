@@ -8,7 +8,7 @@ web
 
 ## Users
 
-One person: the repo owner, digging for music on Bandcamp. They browse label and artist pages (`/` and `/music`) and want to know which releases can be downloaded for free without opening each one. Personal use only: loaded unpacked in Chrome, not published to the Chrome Web Store.
+One person: the repo owner, digging for music on Bandcamp. They browse label and artist pages (`/` and `/music`) and want to know which releases can be downloaded for free without opening each one. Used unpacked by its owner for now; being prepared for the Chrome Web Store and other extension stores.
 
 ## Product Purpose
 
@@ -35,6 +35,7 @@ Bandcamp only shows the price on each release's own page. The extension reads ea
 
 ## Brand Commitments
 
+- Name: "Free Download Finder for Bandcamp" (repo `free-download-finder-for-bandcamp`): "free download" is what people search for in the stores, and the "... for Bandcamp" form names the site it works on without implying it's Bandcamp's own; a name starting with "Bandcamp" risks a trademark rejection. Not affiliated with Bandcamp.
 - On-cover copy is in English, using Bandcamp's own vocabulary ("free", "name your price"), as the owner chose.
 
 ## Product Principles

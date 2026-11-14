@@ -1,7 +1,8 @@
 {
 	"manifest_version": 3,
-	"name": "Bandcamp Free Finder",
-	"description": "Flags free and name-your-price releases on Bandcamp label and artist pages, without opening them.",
+	"name": "Free Download Finder for Bandcamp",
+	"description": "Spot free downloads and name-your-price releases on Bandcamp label and artist pages, without opening each album.",
+	"homepage_url": "https://github.com/alexandrebedel/free-download-finder-for-bandcamp",
 	"version": "1.1.0",
 	"permissions": ["storage"],
 	"host_permissions": ["*://*.bandcamp.com/*"],
@@ -14,7 +15,7 @@
 		}
 	],
 	"action": {
-		"default_title": "Bandcamp Free Finder"
+		"default_title": "Free Download Finder for Bandcamp"
 	},
 	"background": {
 		"service_worker": "js/bg.js",

@@ -19,7 +19,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 			return false;
 		}
 		getVerdict(msg.url, Boolean(msg.urgent)).then(sendResponse, (err) => {
-			console.warn("[bandcamp-free-finder]", err);
+			console.warn("[free-download-finder-for-bandcamp]", err);
 			sendResponse({ kind: "unknown" });
 		});
 		return true;
