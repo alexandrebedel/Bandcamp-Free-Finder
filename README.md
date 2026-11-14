@@ -10,7 +10,9 @@ On `/` and `/music` pages, every release tile gets checked in the background. Fr
 | **FREE** · with email | Free download, Bandcamp asks for an email address |
 | **FREE** (dark band) · 2 of 5 tracks | Paid release, but some tracks are free on their own |
 
-The toolbar icon shows how many free releases are on the current tab. Paid releases are left untouched.
+Above the grid, a strip lists the free releases of the page in page order as they're found, with the scan's progress. Its **Free only** button hides everything else in the grid (until you click it again). The strip only appears when there is at least one free release.
+
+The toolbar icon shows how many free releases are on the current tab. Paid releases are left untouched unless you turn on **Free only**.
 
 ## How it works
 

@@ -19,8 +19,14 @@
 	}
 
 	const handled = new WeakSet();
-	// Counted by release, not by tile: a release can show up in two tiles.
+	// Counted and listed by release, not by tile: a release can show up in
+	// two tiles.
 	const freeReleases = new Set();
+	const listed = new Set();
+	// The strip above the grid (js/free-list.js) and the scan's progress.
+	const freeList = globalThis.bffCreateFreeList(grid);
+	let found = 0;
+	let checked = 0;
 	let alive = true;
 
 	function goQuiet(err) {
@@ -128,6 +134,8 @@
 		handled.add(tile);
 		art.classList.add("bff-art");
 		tile.dataset.bff = "pending";
+		found++;
+		freeList.progress(checked, found);
 		if (urgent) {
 			// Only covers on screen animate their scan line.
 			tile.classList.add("bff-near");
@@ -139,6 +147,8 @@
 		onScreen.unobserve(tile);
 		const kind = verdict?.kind ?? "unknown";
 		tile.dataset.bff = kind;
+		checked++;
+		freeList.progress(checked, found);
 
 		if (kind === "unknown") {
 			// Not the same as paid: the release may well be free.
@@ -147,6 +157,10 @@
 		if (kind === "free" || kind === "partial") {
 			renderBadge(art, verdict);
 			const release = url.split(/[?#]/)[0].replace(/\/$/, "");
+			if (!listed.has(release)) {
+				listed.add(release);
+				freeList.add(tile, url, verdict, copy(verdict).detail);
+			}
 			if (kind === "free" && !freeReleases.has(release)) {
 				freeReleases.add(release);
 				send({ type: "bff:count", count: freeReleases.size });
