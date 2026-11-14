@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- 16 px (toolbar): pixel-fitted sleeve and band. -->
+  <rect x="1.5" y="1.5" width="13" height="13" rx="1.5" fill="#0f1411" stroke="#a9bfb1" stroke-opacity="0.5" stroke-width="1"/>
+  <path d="M1 11 H15 V13.5 A1.5 1.5 0 0 1 13.5 15 H2.5 A1.5 1.5 0 0 1 1 13.5 Z" fill="#3ee07f"/>
+</svg>
