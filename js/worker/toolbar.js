@@ -1,9 +1,11 @@
-// The count on the toolbar icon, per tab, in the band's sticker colours.
+// The count on the toolbar icon, per tab. Chrome draws it over the icon's
+// bottom right, right on the green band, so it takes the sleeve's colours
+// (dark, green digits) to read as a sticker on the band, not merge into it.
 
 export function showFreeCount(tabId, count) {
 	chrome.action.setBadgeText({ tabId, text: count > 0 ? String(count) : "" });
-	chrome.action.setBadgeBackgroundColor({ tabId, color: "#3ee07f" });
-	chrome.action.setBadgeTextColor({ tabId, color: "#04150b" });
+	chrome.action.setBadgeBackgroundColor({ tabId, color: "#0f1411" });
+	chrome.action.setBadgeTextColor({ tabId, color: "#3ee07f" });
 	chrome.action.setTitle({
 		tabId,
 		title:

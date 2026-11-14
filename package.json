@@ -13,7 +13,8 @@
 		"test": "node --test",
 		"lint": "biome check .",
 		"format": "biome format --write .",
-		"zip": "rm -f free-download-finder-for-bandcamp.zip && zip -r free-download-finder-for-bandcamp.zip manifest.json js css -x '*.DS_Store'"
+		"zip": "rm -f free-download-finder-for-bandcamp.zip && zip -r free-download-finder-for-bandcamp.zip manifest.json js css icons/*.png -x '*.DS_Store'",
+		"icons": "sh scripts/build-icons.sh"
 	},
 	"license": "ISC",
 	"devDependencies": {

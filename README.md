@@ -40,6 +40,9 @@ js/
     band.js             the band on a free cover
     free-list.js        the strip above the grid
     messages.js         messages to the worker; stops when orphaned
+icons/
+  src/icon-*.svg        icon sources, one per size (16 and 32 drop the record)
+  icon-*.png            what the manifest and the stores use
 css/
   tokens.css            shared colours and easing
   band.css              the band and the scan line
@@ -71,6 +74,7 @@ After changing the code, click the reload icon on the extension card, then reloa
 npm install
 npm test        # verdict rules (node:test)
 npm run lint    # Biome
+npm run icons   # icons/src/*.svg -> icons/*.png, with headless Chrome
 npm run zip     # free-download-finder-for-bandcamp.zip
 ```
 
