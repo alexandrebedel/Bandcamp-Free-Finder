@@ -16,7 +16,13 @@ The toolbar icon shows how many free releases are on the current tab. Paid relea
 
 Every album and track page embeds its sale data as JSON in a `data-tralbum` attribute. The service worker (`js/bg.js`) fetches each release page, reads `current.minimum_price`, `current.require_email` and `trackinfo[].has_free_download` (`js/verdict.js`), and sends the verdict to the content script (`js/content.js`), which draws the band (`css/badge.css`).
 
-To stay polite with Bandcamp, it runs 3 requests at a time, backs off on HTTP 429, and caches verdicts for 12 hours in `chrome.storage.local`.
+To stay light and polite with Bandcamp:
+
+- covers on screen are checked first; the rest of the grid follows, 3 requests at a time;
+- each page is read only up to its sale data (about a fifth of it), then the read stops;
+- on HTTP 429 every request pauses, not just the one that got it;
+- verdicts are cached for 24 hours in `chrome.storage.local`, so a label you revisit costs no requests;
+- pages without a release grid (album, track, fan pages) are left alone, and only covers on screen animate.
 
 ## Install (unpacked)
 

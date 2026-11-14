@@ -5,10 +5,64 @@ import {
 	decodeEntities,
 	extractTralbum,
 	isReleaseUrl,
+	readUntilSaleData,
 	releaseKey,
 	verdictFromHtml,
 	verdictFromTralbum,
 } from "../js/verdict.js";
+
+// A body that serves `text` in `size`-byte chunks and reports whether it
+// was cancelled before the end.
+function streamOf(text, size) {
+	const bytes = new TextEncoder().encode(text);
+	let offset = 0;
+	const state = { cancelled: false };
+	const body = new ReadableStream({
+		pull(controller) {
+			if (offset >= bytes.length) {
+				controller.close();
+				return;
+			}
+			controller.enqueue(bytes.slice(offset, offset + size));
+			offset += size;
+		},
+		cancel() {
+			state.cancelled = offset < bytes.length;
+		},
+	});
+	return { body, state };
+}
+
+test("reading stops once the sale data attribute is closed", async () => {
+	const page = `<head>${"x".repeat(100)}<script data-tralbum="{&quot;a&quot;:1}"></script>${"y".repeat(5000)}`;
+	const { body, state } = streamOf(page, 64);
+	const html = await readUntilSaleData(body);
+	assert.ok(html.includes('data-tralbum="{&quot;a&quot;:1}"'));
+	assert.ok(html.length < 400, `read ${html.length} chars`);
+	assert.equal(state.cancelled, true);
+});
+
+test("finds the attribute when it straddles two chunks", async () => {
+	for (let size = 1; size <= 20; size++) {
+		const { body } = streamOf(
+			'<p>hello</p><script data-tralbum="{}"></script>tail',
+			size,
+		);
+		const html = await readUntilSaleData(body);
+		assert.equal(extractTralbum(html) !== null, true, `chunk size ${size}`);
+	}
+});
+
+test("a page without sale data is read to the end", async () => {
+	const { body, state } = streamOf("<html>no data here</html>", 4);
+	assert.equal(await readUntilSaleData(body), "<html>no data here</html>");
+	assert.equal(state.cancelled, false);
+});
+
+test("multi-byte characters split across chunks decode intact", async () => {
+	const { body } = streamOf('é—ü <script data-tralbum="{}">', 1);
+	assert.ok((await readUntilSaleData(body)).startsWith("é—ü "));
+});
 
 // Shape of the data-tralbum attribute as Bandcamp serves it (HTML-escaped JSON).
 function page(tralbum) {
