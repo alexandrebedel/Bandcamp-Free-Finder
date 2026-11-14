@@ -8,7 +8,7 @@ are plain text: copy the text inside the code blocks as it is.
 **Description**
 
 ```
-See which releases you can download for free on any Bandcamp label or artist page, without opening each album.
+See which releases you can download for free on Bandcamp label and artist pages, without opening each album.
 
 Bandcamp only shows a release's price on its own page. Free Download Finder for Bandcamp checks the releases of the label or artist page you're on, in the background, and marks the free ones right on the grid.
 
@@ -22,7 +22,7 @@ LIGHT ON BANDCAMP
 Labels of up to 100 releases are checked in full. On bigger ones, the extension checks the covers you look at, and "Check the other N" does the rest at a pace Bandcamp accepts. Answers are kept for 24 hours, so a label you come back to costs nothing. Album, track and fan pages are left alone.
 
 PRIVATE
-No account, no analytics, no tracking. The extension only reads Bandcamp release pages (without your cookies) and keeps its answers on your computer.
+No account, no analytics, no tracking. The extension reads the Bandcamp pages you open and the release pages it checks (without your cookies). It keeps its answers on your computer for 24 hours, listed by release address, and sends nothing anywhere else.
 
 Works on *.bandcamp.com label and artist pages; labels on their own domain aren't covered.
 
@@ -64,7 +64,7 @@ Marks the free and name-your-price releases on Bandcamp label and artist pages, 
 **Permission justification: storage**
 
 ```
-Caches, for 24 hours, whether each release is free, so revisiting a label doesn't fetch its release pages again. Nothing else is stored, and nothing leaves the user's computer.
+Caches, for 24 hours, whether each release is free, keyed by the release's address, so revisiting a label doesn't fetch its release pages again. Nothing else is stored, and nothing leaves the user's computer.
 ```
 
 **Permission justification: host permission (*://*.bandcamp.com/*)**
