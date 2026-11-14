@@ -40,7 +40,7 @@ After an update, click the reload icon on the extension's card, then reload the 
 
 ## Good to know
 
-- **Private.** No account, no analytics: the extension only talks to Bandcamp release pages (without your cookies) and keeps its answers on your computer for 24 hours. Bandcamp pages can tell it's installed, because the page-side code is loaded from the extension.
+- **Private.** No account, no analytics: the extension only talks to Bandcamp release pages (without your cookies) and keeps its answers on your computer for 24 hours. Bandcamp pages can tell it's installed, because the page-side code is loaded from the extension. Details in the [privacy policy](PRIVACY.md).
 - **Light on Bandcamp.** On-screen covers first, a few requests at a time per label, a pause when Bandcamp asks for one (the strip then says "waiting for Bandcamp"), and no work at all on album, track or fan pages.
 - **Limits.** Only `*.bandcamp.com` pages (labels on their own domain aren't covered), and only the release grid, not the discography sidebar or the recommendations.
 - Not affiliated with Bandcamp.

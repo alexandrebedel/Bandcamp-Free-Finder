@@ -80,9 +80,8 @@ not remote code.)
 **Data usage**: tick none of the data types: the extension collects no user
 data. The three certifications at the bottom are yours to confirm.
 
-**Privacy policy URL**: not required when no user data is collected. If the
-form asks for one anyway:
-https://github.com/alexandrebedel/free-download-finder-for-bandcamp#good-to-know
+**Privacy policy URL** (the policy is `PRIVACY.md`, on master):
+https://github.com/alexandrebedel/free-download-finder-for-bandcamp/blob/master/PRIVACY.md
 
 ## Distribution ("Distribution")
 
