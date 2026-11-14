@@ -79,7 +79,10 @@ css/
 icons/
   src/icon-*.svg        icon sources, one per size (16 and 32 drop the record)
   icon-*.png            what the manifest and the stores use
-store/screenshots/      Chrome Web Store screenshots, 1280x800
+store/
+  screenshots/          Chrome Web Store screenshots, 1280x800
+  promo/                promo tiles (src/*.html -> npm run promo)
+  listing.md            what to paste in each field of the store listing
 ```
 
 Content scripts can't be ES modules, so `js/content.js` loads `js/content/main.js` with a dynamic `import()`. That's why `js/content/` and `js/shared/` are `web_accessible_resources`; a test checks that every imported module is listed.
@@ -93,6 +96,7 @@ npm install
 npm test        # unit tests (node:test)
 npm run lint    # Biome
 npm run icons   # icons/src/*.svg -> icons/*.png, with headless Chrome
+npm run promo   # store promo tiles, with headless Chrome and ffmpeg
 npm run zip     # the package to upload to the store
 ```
 
