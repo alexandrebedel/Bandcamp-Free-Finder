@@ -5,11 +5,11 @@ import {
 	decodeEntities,
 	extractTralbum,
 	isReleaseUrl,
-	readUntilSaleData,
 	releaseKey,
 	verdictFromHtml,
 	verdictFromTralbum,
-} from "../js/verdict.js";
+} from "../js/shared/verdict.js";
+import { readUntilSaleData } from "../js/worker/sale-page.js";
 
 // A body that serves `text` in `size`-byte chunks and reports whether it
 // was cancelled before the end.

@@ -1,0 +1,18 @@
+/*
+ * Bandcamp Free Finder's visual world: a record-shop price sticker in
+ * fluorescent green on a dark sleeve, set in Bandcamp's own font so it reads
+ * as an annotation on the page, not a new widget. Shared by the band on the
+ * covers (band.css) and the free list above the grid (free-list.css).
+ */
+
+.bff-art,
+.bff-list {
+	--bff-sticker: #3ee07f;
+	--bff-ink: #04150b;
+	--bff-ink-soft: #0d3a20;
+	--bff-sleeve: #0f1411;
+	--bff-sleeve-text: #a9bfb1;
+	--bff-paper: #e9f1ec;
+	--bff-band-h: 24px;
+	--bff-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}

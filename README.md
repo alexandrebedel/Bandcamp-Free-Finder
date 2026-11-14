@@ -16,7 +16,34 @@ The toolbar icon shows how many free releases are on the current tab. Paid relea
 
 ## How it works
 
-Every album and track page embeds its sale data as JSON in a `data-tralbum` attribute. The service worker (`js/bg.js`) fetches each release page, reads `current.minimum_price`, `current.require_email` and `trackinfo[].has_free_download` (`js/verdict.js`), and sends the verdict to the content script (`js/content.js`), which draws the band (`css/badge.css`).
+Every album and track page embeds its sale data as JSON in a `data-tralbum` attribute. The service worker reads it from each release page (`current.minimum_price`, `current.require_email`, `trackinfo[].has_free_download`) and answers the content script, which draws the band and the list.
+
+```
+manifest.json
+js/
+  bg.js                 service worker entry: routes the content script's messages
+  content.js            content script entry: imports js/content/main.js
+  shared/verdict.js     what a release page says about its price; release URLs
+  worker/
+    verdicts.js         cache, then a queue of page reads; one read per release
+    queue.js            3 at a time, on-screen covers first
+    sale-page.js        reads a page up to its sale data; timeouts, 429 pause
+    cache.js            24 h cache in chrome.storage.local
+    toolbar.js          the count on the toolbar icon
+  content/
+    main.js             wires the scan to the band, the list and the count
+    scan.js             checks every tile, visible first, and appended ones
+    tiles.js            reads Bandcamp's grid: tiles, URLs, titles, covers
+    band.js             the band on a free cover
+    free-list.js        the strip above the grid
+    messages.js         messages to the worker; stops when orphaned
+css/
+  tokens.css            shared colours and easing
+  band.css              the band and the scan line
+  free-list.css         the strip and "Free only"
+```
+
+Content scripts can't be ES modules, so `js/content.js` loads `js/content/main.js` with a dynamic `import()`. That is why `js/content/` and `js/shared/` are listed in the manifest's `web_accessible_resources` (Bandcamp pages can see that these files exist; a test checks every imported module is listed).
 
 To stay light and polite with Bandcamp:
 

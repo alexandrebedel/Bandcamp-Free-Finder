@@ -8,8 +8,8 @@
 	"content_scripts": [
 		{
 			"matches": ["*://*.bandcamp.com/*"],
-			"js": ["js/free-list.js", "js/content.js"],
-			"css": ["css/badge.css"],
+			"js": ["js/content.js"],
+			"css": ["css/tokens.css", "css/band.css", "css/free-list.css"],
 			"run_at": "document_idle"
 		}
 	],
@@ -19,5 +19,11 @@
 	"background": {
 		"service_worker": "js/bg.js",
 		"type": "module"
-	}
+	},
+	"web_accessible_resources": [
+		{
+			"resources": ["js/content/*.js", "js/shared/*.js"],
+			"matches": ["*://*.bandcamp.com/*"]
+		}
+	]
 }

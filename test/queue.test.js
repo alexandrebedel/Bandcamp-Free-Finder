@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createQueue } from "../js/queue.js";
+import { createQueue } from "../js/worker/queue.js";
 
 // A task that records when it starts and finishes on the next tick.
 function recorder() {
