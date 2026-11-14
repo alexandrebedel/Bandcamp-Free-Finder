@@ -10,5 +10,5 @@
   <rect x="17" y="33" width="78" height="78" rx="6" fill="#0f1411" stroke="#a9bfb1" stroke-opacity="0.4" stroke-width="2"/>
   <!-- The band the extension puts on free covers, with its ink hairline. -->
   <path d="M16 90 H96 V106 A6 6 0 0 1 90 112 H22 A6 6 0 0 1 16 106 Z" fill="#3ee07f"/>
-  <path d="M17 91 H95" stroke="#04150b" stroke-opacity="0.35" stroke-width="2"/>
+  <path d="M16 91 H96" stroke="#04150b" stroke-opacity="0.35" stroke-width="2"/>
 </svg>

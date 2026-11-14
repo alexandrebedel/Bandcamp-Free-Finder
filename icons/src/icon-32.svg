@@ -3,5 +3,5 @@
        only reads from 48 px up; here it would shrink the band. -->
   <rect x="2.5" y="2.5" width="27" height="27" rx="2.5" fill="#0f1411" stroke="#a9bfb1" stroke-opacity="0.45" stroke-width="1"/>
   <path d="M2 22 H30 V27.5 A2.5 2.5 0 0 1 27.5 30 H4.5 A2.5 2.5 0 0 1 2 27.5 Z" fill="#3ee07f"/>
-  <path d="M3 22.5 H29" stroke="#04150b" stroke-opacity="0.35" stroke-width="1"/>
+  <path d="M2 22.5 H30" stroke="#04150b" stroke-opacity="0.35" stroke-width="1"/>
 </svg>
