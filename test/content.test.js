@@ -4,7 +4,12 @@ import { dirname, join, relative } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { verdictCopy } from "../js/content/band.js";
-import { insertionIndex } from "../js/content/free-list.js";
+import {
+	insertionIndex,
+	statusText,
+	summaryText,
+} from "../js/content/free-list.js";
+import { gridSize } from "../js/content/tiles.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -74,4 +79,43 @@ test("every content module is web-accessible", () => {
 	for (const path of seen) {
 		assert.ok(accessible(path), `${path} is not in web_accessible_resources`);
 	}
+});
+
+test("free list wording", () => {
+	assert.equal(
+		summaryText({ free: 8, partial: 1, unchecked: 0 }),
+		"8 releases · 1 with free tracks",
+	);
+	assert.equal(summaryText({ free: 1, partial: 0, unchecked: 3 }), "1 release");
+	assert.equal(
+		summaryText({ free: 0, partial: 0, unchecked: 360 }),
+		"none found yet",
+	);
+	assert.equal(
+		summaryText({ free: 0, partial: 0, unchecked: 0 }),
+		"none on this page",
+	);
+	assert.equal(
+		statusText({ found: 400, checked: 40, waiting: false }),
+		"40 of 400 checked",
+	);
+	assert.equal(
+		statusText({ found: 400, checked: 40, waiting: true }),
+		"waiting for Bandcamp · 40 of 400 checked",
+	);
+	assert.equal(statusText({ found: 79, checked: 79, waiting: false }), "");
+});
+
+test("grid size counts the tiles Bandcamp hasn't rendered yet", () => {
+	const grid = (tiles, clientItems) => ({
+		querySelectorAll: () => ({ length: tiles }),
+		dataset: clientItems === undefined ? {} : { clientItems },
+	});
+	// artsrecordings at load: 16 tiles, 399 more in data-client-items.
+	const items = JSON.stringify(
+		Array.from({ length: 399 }, (_, i) => ({ id: i })),
+	);
+	assert.equal(gridSize(grid(16, items)), 415);
+	assert.equal(gridSize(grid(79)), 79);
+	assert.equal(gridSize(grid(10, "not json")), 10);
 });

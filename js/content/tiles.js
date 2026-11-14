@@ -36,6 +36,28 @@ export function releaseId(url) {
 	return url.split(/[?#]/)[0].replace(/\/$/, "");
 }
 
+// How many releases the grid holds. Bandcamp renders the first few tiles
+// (16 on artsrecordings) and adds the rest from the grid's data-client-items
+// shortly after, so counting tiles at load undercounts a big label. Tiles
+// plus client items may count some twice: an overestimate only errs toward
+// checking less.
+export function gridSize(grid) {
+	const tiles = grid.querySelectorAll(TILE_SELECTOR).length;
+	try {
+		const items = JSON.parse(grid.dataset.clientItems || "[]");
+		return tiles + (Array.isArray(items) ? items.length : 0);
+	} catch {
+		return tiles;
+	}
+}
+
+// Sort comparator: a before b when a comes first in the page.
+export function inPageOrder(a, b) {
+	return a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING
+		? -1
+		: 1;
+}
+
 export function isNearViewport(tile) {
 	const rect = tile.getBoundingClientRect();
 	return rect.bottom > -NEAR_PX && rect.top < window.innerHeight + NEAR_PX;

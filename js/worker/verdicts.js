@@ -1,17 +1,29 @@
 // Answers "is this release free?": from the cache when possible, otherwise
-// through a queue that runs 3 page reads at a time, on-screen covers first.
-// Two tabs asking about the same release share one read.
+// by reading the release page. Each Bandcamp host gets its own queue, so a
+// label that's being rate-limited doesn't hold up the others; within a
+// host, on-screen covers go first. Two tabs asking about the same release
+// share one read.
 
 import { releaseKey, verdictFromHtml } from "../shared/verdict.js";
 import { readCache, writeCache } from "./cache.js";
 import { createQueue } from "./queue.js";
 import { fetchSaleHtml } from "./sale-page.js";
 
-// Bandcamp answers 429 when a label page fires dozens of requests at once.
-const MAX_CONCURRENT = 3;
+// Page reads at once per host; pace.js spaces them out further.
+const MAX_PER_HOST = 3;
 
 const inflight = new Map();
-const queue = createQueue(MAX_CONCURRENT);
+const queues = new Map();
+
+function queueFor(key) {
+	const host = new URL(key).host;
+	let queue = queues.get(host);
+	if (!queue) {
+		queue = createQueue(MAX_PER_HOST);
+		queues.set(host, queue);
+	}
+	return queue;
+}
 
 async function readVerdict(key) {
 	const verdict = verdictFromHtml(await fetchSaleHtml(key));
@@ -30,18 +42,26 @@ export async function getVerdict(href, urgent) {
 	}
 	if (inflight.has(key)) {
 		if (urgent) {
-			queue.prioritize([key]);
+			queueFor(key).prioritize([key]);
 		}
 		return inflight.get(key);
 	}
-	const job = queue
+	const job = queueFor(key)
 		.add(key, () => readVerdict(key), { urgent })
 		.finally(() => inflight.delete(key));
 	inflight.set(key, job);
 	return job;
 }
 
-// Pending covers that scrolled into view, in reading order.
+// Pending covers that scrolled into view, in reading order: grouped by host
+// so each host's queue moves them as one block and keeps that order.
 export function prioritize(hrefs) {
-	queue.prioritize(hrefs.map(releaseKey));
+	const byQueue = new Map();
+	for (const key of hrefs.map(releaseKey)) {
+		const queue = queueFor(key);
+		byQueue.set(queue, [...(byQueue.get(queue) ?? []), key]);
+	}
+	for (const [queue, keys] of byQueue) {
+		queue.prioritize(keys);
+	}
 }

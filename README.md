@@ -2,7 +2,7 @@
 
 Chrome extension (Manifest V3) that marks the free releases on a Bandcamp label or artist page, without opening them.
 
-On `/` and `/music` pages, every release tile gets checked in the background. Free covers get a green band at the bottom:
+On `/` and `/music` pages, release tiles get checked in the background: the whole grid on labels of up to 100 releases, and on bigger ones only the covers you look at, plus everything once you click **Check the other N** (Bandcamp limits requests per label, and a big label alone can hit that limit). Free covers get a green band at the bottom:
 
 | Band | Meaning |
 | --- | --- |
@@ -10,7 +10,7 @@ On `/` and `/music` pages, every release tile gets checked in the background. Fr
 | **FREE** · with email | Free download, Bandcamp asks for an email address |
 | **FREE** (dark band) · 2 of 5 tracks | Paid release, but some tracks are free on their own |
 
-Above the grid, a strip lists the free releases of the page in page order as they're found, with the scan's progress. Its **Free only** button hides everything else in the grid (until you click it again). The strip only appears when there is at least one free release.
+Above the grid, a strip lists the free releases of the page in page order as they're found, with how much of the grid is checked. Its **Free only** button hides the releases known to be paid (until you click it again). On a small label the strip only appears when there is at least one free release; on a big one it's there from the start, with **Check the other N**.
 
 The toolbar icon shows how many free releases are on the current tab. Paid releases are left untouched unless you turn on **Free only**.
 
@@ -25,14 +25,15 @@ js/
   content.js            content script entry: imports js/content/main.js
   shared/verdict.js     what a release page says about its price; release URLs
   worker/
-    verdicts.js         cache, then a queue of page reads; one read per release
-    queue.js            3 at a time, on-screen covers first
-    sale-page.js        reads a page up to its sale data; timeouts, 429 pause
+    verdicts.js         cache, then a queue per host; one read per release
+    queue.js            a few at a time, on-screen covers first
+    sale-page.js        reads a page up to its sale data; timeouts, retries
+    pace.js             per-host budget (burst, then spaced), pauses after a 429
     cache.js            24 h cache in chrome.storage.local
     toolbar.js          the count on the toolbar icon
   content/
     main.js             wires the scan to the band, the list and the count
-    scan.js             checks every tile, visible first, and appended ones
+    scan.js             checks tiles: on screen, on scroll, or all of them
     tiles.js            reads Bandcamp's grid: tiles, URLs, titles, covers
     band.js             the band on a free cover
     free-list.js        the strip above the grid
@@ -47,9 +48,10 @@ Content scripts can't be ES modules, so `js/content.js` loads `js/content/main.j
 
 To stay light and polite with Bandcamp:
 
-- covers on screen are checked first; the rest of the grid follows, 3 requests at a time;
+- covers on screen are checked first; on a big label, a cover you scroll past is only checked once it stays on screen for 300 ms;
+- each Bandcamp host gets its own queue and budget: a burst of 12 requests (a screenful), then 4 per second, 3 at a time;
 - each page is read only up to its sale data (about a fifth of it), then the read stops;
-- on HTTP 429 every request pauses, not just the one that got it;
+- on HTTP 429 that host pauses, 2 s then twice as long each time up to 30 s, and resumes one request at a time; the strip says "waiting for Bandcamp";
 - verdicts are cached for 24 hours in `chrome.storage.local`, so a label you revisit costs no requests;
 - pages without a release grid (album, track, fan pages) are left alone, and only covers on screen animate.
 

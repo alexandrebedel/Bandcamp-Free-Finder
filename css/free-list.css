@@ -59,9 +59,16 @@
 	font-variant-numeric: tabular-nums;
 }
 
-.bff-list__toggle {
+/* "Check the other N" and "Free only", at the right of the head row. */
+.bff-list__actions {
+	display: flex;
 	flex: none;
+	gap: 8px;
 	margin-left: auto;
+}
+
+.bff-list__button {
+	flex: none;
 	padding: 6px 10px;
 	border: 1px solid rgb(169 191 177 / 0.45);
 	border-radius: 2px;
@@ -80,19 +87,19 @@
 }
 
 /* Bandcamp underlines hovered buttons (button:hover outranks a lone class). */
-.bff-list__toggle:hover {
+.bff-list__button:hover {
 	border-color: var(--bff-sleeve-text);
 	background: rgb(169 191 177 / 0.1);
 	text-decoration: none;
 }
 
-.bff-list__toggle[aria-pressed="true"] {
+.bff-list__button[aria-pressed="true"] {
 	border-color: var(--bff-sticker);
 	background: var(--bff-sticker);
 	color: var(--bff-ink);
 }
 
-.bff-list__toggle:focus-visible,
+.bff-list__button:focus-visible,
 .bff-list__link:focus-visible {
 	outline: 2px solid var(--bff-sticker);
 	outline-offset: 2px;
@@ -229,14 +236,16 @@
 	transition: transform 300ms var(--bff-ease-out);
 }
 
-/* "Free only": hide what's known to be paid, and what's still being checked.
-   Releases whose check failed stay, with their dashed line: they may be free. */
-.bff-free-only
-> li.music-grid-item:not(
-	[data-bff="free"],
-	[data-bff="partial"],
-	[data-bff="unknown"]
-) {
+/* "Free only": hide the releases known to be paid. Those not checked yet,
+   being checked, or whose check failed stay: they may be free, and covers
+   that are hidden never come into view to get checked. */
+.bff-free-only > li.music-grid-item[data-bff="paid"] {
+	display: none !important;
+}
+
+/* Parts of the strip that don't apply yet (no free release, nothing left
+   to check). The class rules above would otherwise override [hidden]. */
+.bff-list [hidden] {
 	display: none !important;
 }
 
