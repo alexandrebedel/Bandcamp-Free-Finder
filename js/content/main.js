@@ -6,7 +6,7 @@ import { addBand, verdictCopy } from "./band.js";
 import { createFreeList } from "./free-list.js";
 import { send } from "./messages.js";
 import { scanGrid } from "./scan.js";
-import { findGrid, releaseId } from "./tiles.js";
+import { findGrid, gridSize, releaseId } from "./tiles.js";
 
 // Up to this many releases, the whole grid is checked right away; above it,
 // only what's on screen, plus everything on "Check all". Bandcamp limits
@@ -94,7 +94,8 @@ if (grid) {
 		},
 	});
 
-	if (found <= CHECK_ALL_UP_TO) {
+	// Decided on the grid's full size, not just the tiles rendered so far.
+	if (gridSize(grid) <= CHECK_ALL_UP_TO) {
 		scanner.checkAll();
 	}
 	ready = true;

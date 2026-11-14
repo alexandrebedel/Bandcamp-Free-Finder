@@ -9,6 +9,7 @@ import {
 	statusText,
 	summaryText,
 } from "../js/content/free-list.js";
+import { gridSize } from "../js/content/tiles.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -103,4 +104,18 @@ test("free list wording", () => {
 		"waiting for Bandcamp · 40 of 400 checked",
 	);
 	assert.equal(statusText({ found: 79, checked: 79, waiting: false }), "");
+});
+
+test("grid size counts the tiles Bandcamp hasn't rendered yet", () => {
+	const grid = (tiles, clientItems) => ({
+		querySelectorAll: () => ({ length: tiles }),
+		dataset: clientItems === undefined ? {} : { clientItems },
+	});
+	// artsrecordings at load: 16 tiles, 399 more in data-client-items.
+	const items = JSON.stringify(
+		Array.from({ length: 399 }, (_, i) => ({ id: i })),
+	);
+	assert.equal(gridSize(grid(16, items)), 415);
+	assert.equal(gridSize(grid(79)), 79);
+	assert.equal(gridSize(grid(10, "not json")), 10);
 });
