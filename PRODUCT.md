@@ -22,7 +22,7 @@ Bandcamp only shows the price on each release's own page. The extension reads ea
 
 - Runs on `*.bandcamp.com` pages, on top of Bandcamp's own UI. Label pages have arbitrary custom theme colours and backgrounds, and covers can be any image.
 - Grid tiles are `li.music-grid-item > a > .art > img`, square covers of 168 px at a 1024 px wide window. Bandcamp renders the first tiles server-side and appends the rest while scrolling.
-- Covers on screen are checked first (a few seconds); the rest of a large label follows, three requests at a time, cached for 24 hours.
+- Labels of up to 100 releases are checked in full automatically, covers on screen first. Bigger labels are checked lazily (what's on screen, as you scroll) with a "Check the other N" button for the rest (owner's decision, 2026-11-14): Bandcamp rate-limits per label subdomain and a full scan of a big label hits that limit. Verdicts are cached 24 hours.
 - It must stay light: no work on pages without a grid, no request bursts after a 429, animation only on covers on screen.
 
 ## Capabilities and Constraints

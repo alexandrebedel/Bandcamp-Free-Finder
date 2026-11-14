@@ -1,7 +1,8 @@
 // The "free on this page" strip above the grid (styles: css/free-list.css).
-// It appears with the first free release the scan finds, lists them in page
-// order whatever order they're found in, shows the scan's progress, and
-// offers a "Free only" view of the grid.
+// It lists the free releases found so far in page order, whatever order
+// they're found in, shows how much of the grid is checked, and offers "Check
+// the other N" (on big labels only what's on screen is checked by default)
+// and a "Free only" view of the grid.
 
 import { describeTile } from "./tiles.js";
 
@@ -29,10 +30,10 @@ function el(tag, className, text) {
 }
 
 function freeOnlyToggle(grid) {
-	const toggle = el("button", "bff-list__toggle", "Free only");
+	const toggle = el("button", "bff-list__button", "Free only");
 	toggle.type = "button";
 	toggle.setAttribute("aria-pressed", "false");
-	toggle.title = "Hide the releases that aren't free";
+	toggle.title = "Hide the releases known to be paid";
 	toggle.addEventListener("click", () => {
 		const on = toggle.getAttribute("aria-pressed") !== "true";
 		toggle.setAttribute("aria-pressed", String(on));
@@ -94,14 +95,50 @@ function item(url, verdict, detail, { title, artist, cover }) {
 	return li;
 }
 
-export function createFreeList(grid) {
+function checkAllButton(onCheckAll) {
+	const button = el("button", "bff-list__button");
+	button.type = "button";
+	button.title =
+		"Checks the rest of the grid at a pace Bandcamp accepts: a few minutes on a big label";
+	button.addEventListener("click", onCheckAll);
+	return button;
+}
+
+export function summaryText({ free, partial, unchecked }) {
+	const parts = [];
+	if (free > 0) {
+		parts.push(`${free} release${free > 1 ? "s" : ""}`);
+	}
+	if (partial > 0) {
+		parts.push(`${partial} with free tracks`);
+	}
+	if (parts.length > 0) {
+		return parts.join(" · ");
+	}
+	return unchecked > 0 ? "none found yet" : "none on this page";
+}
+
+export function statusText({ found, checked, waiting }) {
+	const parts = [];
+	if (waiting) {
+		parts.push("waiting for Bandcamp");
+	}
+	if (checked < found) {
+		parts.push(`${checked} of ${found} checked`);
+	}
+	return parts.join(" · ");
+}
+
+// `onCheckAll` runs when "Check the other N" is clicked.
+export function createFreeList(grid, { onCheckAll }) {
 	// Kept in page order: { tile, li, kind }.
 	const entries = [];
-	let done = 0;
-	let total = 0;
+	let scan = { found: 0, started: 0, checked: 0, waiting: false };
 	let strip = null;
 	let summary;
 	let status;
+	let checkAll;
+	let freeOnly;
 	let bar;
 	let row;
 	let renderQueued = false;
@@ -110,15 +147,15 @@ export function createFreeList(grid) {
 		strip = el("section", "bff-list");
 		strip.setAttribute("aria-label", "Free releases on this page");
 
-		const head = el("div", "bff-list__head");
 		summary = el("span", "bff-list__summary");
 		status = el("span", "bff-list__status");
-		head.append(
-			el("span", "bff-list__tag", "Free"),
-			summary,
-			status,
-			freeOnlyToggle(grid),
-		);
+		checkAll = checkAllButton(onCheckAll);
+		freeOnly = freeOnlyToggle(grid);
+		const actions = el("span", "bff-list__actions");
+		actions.append(checkAll, freeOnly);
+
+		const head = el("div", "bff-list__head");
+		head.append(el("span", "bff-list__tag", "Free"), summary, status, actions);
 
 		row = el("ul", "bff-list__items");
 		scrollSideways(row);
@@ -133,33 +170,44 @@ export function createFreeList(grid) {
 	}
 
 	function render() {
+		const { found, started, checked, waiting } = scan;
 		const free = entries.filter((e) => e.kind === "free").length;
-		const partial = entries.length - free;
-		const parts = [];
-		if (free > 0) {
-			parts.push(`${free} release${free > 1 ? "s" : ""}`);
-		}
-		if (partial > 0) {
-			parts.push(`${partial} with free tracks`);
-		}
-		summary.textContent = parts.join(" · ");
+		const unsent = found - started;
+		summary.textContent = summaryText({
+			free,
+			partial: entries.length - free,
+			unchecked: found - checked,
+		});
+		status.textContent = statusText({ found, checked, waiting });
 
-		const scanning = done < total;
+		checkAll.hidden = unsent === 0;
+		checkAll.textContent = `Check the other ${unsent}`;
+		freeOnly.hidden = entries.length === 0;
+		row.hidden = entries.length === 0;
+
+		const scanning = started > checked;
 		strip.classList.toggle("bff-list--scanning", scanning);
-		status.textContent = scanning ? `checking ${done} of ${total}` : "";
 		bar.style.setProperty(
 			"--bff-progress",
-			String(total > 0 ? done / total : 1),
+			String(found > 0 ? checked / found : 1),
 		);
-		bar.setAttribute("aria-valuemax", String(total));
-		bar.setAttribute("aria-valuenow", String(done));
+		bar.setAttribute("aria-valuemax", String(found));
+		bar.setAttribute("aria-valuenow", String(checked));
 		bar.setAttribute("aria-hidden", String(!scanning));
 	}
 
 	// Verdicts can land by the dozen in one go (cached ones): draw once per
-	// frame.
+	// frame. The strip shows up with the first free release, or right away
+	// when part of the grid is left unchecked, so "Check the other N" is
+	// there to click.
 	function scheduleRender() {
-		if (!strip || renderQueued) {
+		if (!strip && entries.length === 0 && scan.found === scan.started) {
+			return;
+		}
+		if (!strip) {
+			build();
+		}
+		if (renderQueued) {
 			return;
 		}
 		renderQueued = true;
@@ -170,25 +218,24 @@ export function createFreeList(grid) {
 	}
 
 	return {
-		progress(checked, found) {
-			done = checked;
-			total = found;
+		progress(next) {
+			scan = next;
 			scheduleRender();
 		},
 
 		// A free release, or a paid one with free tracks.
 		add(tile, url, verdict, detail) {
-			if (!strip) {
-				build();
-			}
 			const entry = {
 				tile,
 				kind: verdict.kind,
 				li: item(url, verdict, detail, describeTile(tile)),
 			};
 			const at = insertionIndex(entries, entry, comesBefore);
-			row.insertBefore(entry.li, entries[at]?.li ?? null);
 			entries.splice(at, 0, entry);
+			if (!strip) {
+				build();
+			}
+			row.insertBefore(entry.li, entries[at + 1]?.li ?? null);
 			scheduleRender();
 		},
 	};

@@ -143,27 +143,38 @@ test("a cached verdict is answered without fetching", async () => {
 	assert.deepEqual(fetched, []);
 });
 
-// Last: it leaves the worker paused for a second.
-test("a 429 pauses every slot, not just the one that got it", async () => {
+// Last: it leaves the host paused for a couple of seconds.
+test("a 429 pauses that host: nothing else goes out until the pause ends", async () => {
 	fetchedAt.length = 0;
 	rateLimitOnce.add("https://label.bandcamp.com/album/r1");
 	const t0 = Date.now();
-	const names = ["r1", "r2", "r3", "r4", "r5"];
+	const names = ["r1", "r2", "r3", "r4"];
 	const verdicts = await Promise.all(
 		names.map((n) => ask({ type: "bff:verdict", url: url(n) })),
 	);
 	assert.ok(verdicts.every((v) => v.kind === "free"));
 	const at = fetchedAt.map(
-		([u, t]) => `${path(u)}@${t - t0 < 900 ? "now" : "later"}`,
+		([u, t]) => `${path(u)}@${t - t0 < 1500 ? "now" : "later"}`,
 	);
-	// r2 and r3 were already in flight when r1's 429 came back; r4, r5 and
-	// r1's retry all waited for the pause to end.
-	assert.deepEqual(at.sort(), [
-		"r1@later",
+	// r1 got a 429 (Retry-After: 1, so the 2 s minimum pause). Nothing went
+	// out before the pause ended; then r2 and r3, already in line, went
+	// before r1's retry, then r4.
+	assert.deepEqual(at, [
 		"r1@now",
-		"r2@now",
-		"r3@now",
+		"r2@later",
+		"r3@later",
+		"r1@later",
 		"r4@later",
-		"r5@later",
 	]);
+});
+
+test("another host is not paused by that 429", async () => {
+	fetchedAt.length = 0;
+	const t0 = Date.now();
+	const verdict = await ask({
+		type: "bff:verdict",
+		url: "https://other-label.bandcamp.com/album/x",
+	});
+	assert.equal(verdict.kind, "free");
+	assert.ok(fetchedAt[0][1] - t0 < 200, "sent right away");
 });

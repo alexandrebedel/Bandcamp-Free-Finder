@@ -8,25 +8,68 @@ import { send } from "./messages.js";
 import { scanGrid } from "./scan.js";
 import { findGrid, releaseId } from "./tiles.js";
 
+// Up to this many releases, the whole grid is checked right away; above it,
+// only what's on screen, plus everything on "Check all". Bandcamp limits
+// requests per label, and a big label alone can hit that limit.
+const CHECK_ALL_UP_TO = 100;
+// No answer for this long while requests are out: Bandcamp is making us wait.
+const STALL_MS = 8_000;
+
 const grid = findGrid();
 
 if (grid) {
-	const freeList = createFreeList(grid);
 	// Counted and listed by release, not by tile.
 	const listed = new Set();
 	const free = new Set();
 	let found = 0;
+	let started = 0;
 	let checked = 0;
+	let waiting = false;
+	let stallTimer;
+	// Progress is held back until the grid's size has decided whether it's
+	// all checked: otherwise a small label would briefly look half-checked
+	// and show its strip with nothing free in it.
+	let ready = false;
 
-	scanGrid(grid, {
+	const freeList = createFreeList(grid, {
+		onCheckAll: () => scanner.checkAll(),
+	});
+
+	function update() {
+		if (ready) {
+			freeList.progress({ found, started, checked, waiting });
+		}
+	}
+
+	function watchForStall() {
+		clearTimeout(stallTimer);
+		if (started > checked) {
+			stallTimer = setTimeout(() => {
+				waiting = true;
+				update();
+			}, STALL_MS);
+		}
+	}
+
+	const scanner = scanGrid(grid, {
+		onFound(count) {
+			found += count;
+			update();
+		},
+
 		onStart() {
-			found++;
-			freeList.progress(checked, found);
+			started++;
+			if (started - checked === 1) {
+				watchForStall();
+			}
+			update();
 		},
 
 		onResult(tile, url, verdict) {
 			checked++;
-			freeList.progress(checked, found);
+			waiting = false;
+			watchForStall();
+			update();
 			const art = tile.querySelector(".art");
 
 			if (verdict.kind === "unknown") {
@@ -50,4 +93,10 @@ if (grid) {
 			}
 		},
 	});
+
+	if (found <= CHECK_ALL_UP_TO) {
+		scanner.checkAll();
+	}
+	ready = true;
+	update();
 }
