@@ -1,5 +1,6 @@
-// Pure parsing helpers: no chrome.* or DOM APIs, so they run in the service
-// worker and in Node tests alike.
+// What a release page says about its price, and which URLs are release
+// pages. Pure: no chrome.* or DOM APIs, so the service worker, the content
+// script and the Node tests all share it.
 
 const NAMED_ENTITIES = { quot: '"', amp: "&", lt: "<", gt: ">", apos: "'" };
 
@@ -14,40 +15,6 @@ export function decodeEntities(text) {
 		}
 		return NAMED_ENTITIES[code.toLowerCase()] ?? match;
 	});
-}
-
-const TRALBUM_ATTR = 'data-tralbum="';
-
-// Reads a release page's body only until its sale data has arrived (the
-// attribute ends about a fifth into a 250-320 KB page), then cancels the
-// download. Returns everything read so far.
-export async function readUntilSaleData(body) {
-	const reader = body.getReader();
-	const decoder = new TextDecoder();
-	let html = "";
-	let from = 0;
-	try {
-		for (;;) {
-			const { value, done } = await reader.read();
-			if (done) {
-				return html + decoder.decode();
-			}
-			html += decoder.decode(value, { stream: true });
-			const start = html.indexOf(TRALBUM_ATTR, from);
-			if (
-				start !== -1 &&
-				html.indexOf('"', start + TRALBUM_ATTR.length) !== -1
-			) {
-				return html;
-			}
-			// Resume the search where it left off, overlapping the attribute's
-			// length in case it straddles two chunks.
-			from =
-				start !== -1 ? start : Math.max(0, html.length - TRALBUM_ATTR.length);
-		}
-	} finally {
-		reader.cancel().catch(() => {});
-	}
 }
 
 // Every album and track page embeds its full sale data as JSON in a
@@ -119,9 +86,15 @@ export function releaseKey(href) {
 	return `${url.origin}${url.pathname}`.replace(/\/$/, "");
 }
 
+// Album or track page path, whatever the host: the content script uses it to
+// pick release tiles, including ones on an artist's own domain, which the
+// worker then answers "unknown" for.
+export function isReleasePath(pathname) {
+	return /\/(album|track)\/[^/]+\/?$/.test(pathname);
+}
+
 // The service worker only fetches Bandcamp release pages over https: the URL
 // comes from the page's DOM, so it must not be able to point anywhere else.
-// js/content.js mirrors the path rule (content scripts can't import modules).
 export function isReleaseUrl(href) {
 	try {
 		const url = new URL(href);
@@ -129,7 +102,7 @@ export function isReleaseUrl(href) {
 			url.protocol === "https:" &&
 			(url.hostname === "bandcamp.com" ||
 				url.hostname.endsWith(".bandcamp.com")) &&
-			/\/(album|track)\/[^/]+\/?$/.test(url.pathname)
+			isReleasePath(url.pathname)
 		);
 	} catch {
 		return false;

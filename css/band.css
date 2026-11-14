@@ -1,21 +1,10 @@
 /*
- * Bandcamp Free Finder: the band laid across the foot of a free cover.
- *
- * A record-shop price sticker in fluorescent green, set in Bandcamp's own
- * Helvetica so it reads as an annotation on the sleeve, not a new widget.
- * While a release is being checked, a thin scan line runs along the bottom
- * edge; when the release is free, that line unfolds into the band.
+ * The band across the foot of a free cover. While a release is being
+ * checked, a thin scan line runs along the bottom edge; when the release is
+ * free, that line unfolds into the band.
  */
 
 .bff-art {
-	--bff-sticker: #3ee07f;
-	--bff-ink: #04150b;
-	--bff-ink-soft: #0d3a20;
-	--bff-sleeve: #0f1411;
-	--bff-sleeve-text: #a9bfb1;
-	--bff-band-h: 24px;
-	--bff-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-
 	position: relative;
 }
 
@@ -97,7 +86,9 @@
 	white-space: nowrap;
 	font-variant-numeric: tabular-nums;
 
-	animation: bff-unfold 320ms var(--bff-ease-out) both;
+	/* backwards, not both: a clip-path kept after the animation would also
+	   clip the shadow above the band. */
+	animation: bff-unfold 320ms var(--bff-ease-out) backwards;
 }
 
 /* The scan line grows up into the band. */

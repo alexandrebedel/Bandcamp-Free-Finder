@@ -1,0 +1,258 @@
+/* The free list above the grid. A dark sleeve, like the partial band, so it
+   reads on any label theme; it unfolds from a line at its top edge. */
+.bff-list {
+	position: relative;
+	box-sizing: border-box;
+	margin: 0 0 24px;
+	padding: 12px 14px 14px;
+	background: var(--bff-sleeve);
+	color: var(--bff-paper);
+	box-shadow: 0 8px 20px -12px rgb(0 0 0 / 0.55);
+	font-family: inherit;
+	font-size: 13px;
+	line-height: 1.3;
+	text-align: left;
+	animation: bff-list-in 360ms var(--bff-ease-out) backwards;
+}
+
+@keyframes bff-list-in {
+	from {
+		clip-path: inset(0 0 calc(100% - 2px) 0);
+	}
+	to {
+		clip-path: inset(0);
+	}
+}
+
+.bff-list ::selection {
+	background: var(--bff-sticker);
+	color: var(--bff-ink);
+}
+
+.bff-list__head {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-height: 28px;
+}
+
+.bff-list__tag {
+	flex: none;
+	padding: 4px 6px 3px;
+	background: var(--bff-sticker);
+	color: var(--bff-ink);
+	font-size: 11px;
+	font-weight: 700;
+	line-height: 1;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+
+.bff-list__summary {
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.bff-list__status {
+	color: var(--bff-sleeve-text);
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+}
+
+.bff-list__toggle {
+	flex: none;
+	margin-left: auto;
+	padding: 6px 10px;
+	border: 1px solid rgb(169 191 177 / 0.45);
+	border-radius: 2px;
+	background: transparent;
+	color: var(--bff-paper);
+	font: inherit;
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 1;
+	text-decoration: none;
+	cursor: pointer;
+	transition:
+		background-color 150ms ease-out,
+		border-color 150ms ease-out,
+		color 150ms ease-out;
+}
+
+/* Bandcamp underlines hovered buttons (button:hover outranks a lone class). */
+.bff-list__toggle:hover {
+	border-color: var(--bff-sleeve-text);
+	background: rgb(169 191 177 / 0.1);
+	text-decoration: none;
+}
+
+.bff-list__toggle[aria-pressed="true"] {
+	border-color: var(--bff-sticker);
+	background: var(--bff-sticker);
+	color: var(--bff-ink);
+}
+
+.bff-list__toggle:focus-visible,
+.bff-list__link:focus-visible {
+	outline: 2px solid var(--bff-sticker);
+	outline-offset: 2px;
+}
+
+.bff-list__items {
+	display: flex;
+	gap: 14px;
+	margin: 12px 0 0;
+	padding: 0 0 6px;
+	overflow-x: auto;
+	list-style: none;
+	scroll-snap-type: x proximity;
+	scrollbar-width: thin;
+	scrollbar-color: rgb(169 191 177 / 0.4) transparent;
+}
+
+.bff-list__item {
+	flex: none;
+	width: 96px;
+	margin: 0;
+	padding: 0;
+	scroll-snap-align: start;
+	animation: bff-item-in 260ms var(--bff-ease-out) backwards;
+}
+
+@keyframes bff-item-in {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+}
+
+.bff-list__link {
+	display: block;
+	color: inherit;
+	text-decoration: none;
+}
+
+/* The cover, with the band's green foot; split in two for a paid release
+   that only gives some tracks away. */
+.bff-list__art {
+	position: relative;
+	display: block;
+	width: 96px;
+	height: 96px;
+	overflow: hidden;
+	background: #1c231f;
+}
+
+.bff-list__art img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	transition: transform 200ms var(--bff-ease-out);
+}
+
+.bff-list__art::after {
+	content: "";
+	position: absolute;
+	inset: auto 0 0;
+	height: 3px;
+	background: var(--bff-sticker);
+}
+
+.bff-list__item--partial .bff-list__art::after {
+	background: linear-gradient(
+		90deg,
+		var(--bff-sticker) 0 50%,
+		rgb(169 191 177 / 0.35) 50%
+	);
+}
+
+.bff-list__title,
+.bff-list__artist,
+.bff-list__detail {
+	display: block;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.bff-list__title {
+	margin-top: 7px;
+	color: var(--bff-paper);
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.bff-list__artist {
+	margin-top: 2px;
+	color: var(--bff-sleeve-text);
+	font-size: 11px;
+}
+
+.bff-list__detail {
+	margin-top: 3px;
+	color: var(--bff-sticker);
+	font-size: 11px;
+	font-weight: 500;
+}
+
+.bff-list__link:hover .bff-list__art img {
+	transform: scale(1.04);
+}
+
+.bff-list__link:hover .bff-list__title {
+	text-decoration: underline;
+	text-underline-offset: 2px;
+}
+
+/* Scan progress along the strip's foot, gone once every release is checked. */
+.bff-list__progress {
+	position: absolute;
+	inset: auto 0 0;
+	height: 2px;
+	background: rgb(169 191 177 / 0.18);
+	opacity: 0;
+	transition: opacity 400ms ease-out;
+}
+
+.bff-list--scanning .bff-list__progress {
+	opacity: 1;
+}
+
+.bff-list__progress::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: var(--bff-sticker);
+	transform: scaleX(var(--bff-progress, 0));
+	transform-origin: left;
+	transition: transform 300ms var(--bff-ease-out);
+}
+
+/* "Free only": hide what's known to be paid, and what's still being checked.
+   Releases whose check failed stay, with their dashed line: they may be free. */
+.bff-free-only
+> li.music-grid-item:not(
+	[data-bff="free"],
+	[data-bff="partial"],
+	[data-bff="unknown"]
+) {
+	display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.bff-list,
+	.bff-list__item {
+		animation: none;
+	}
+
+	.bff-list__art img,
+	.bff-list__progress,
+	.bff-list__progress::after {
+		transition: none;
+	}
+
+	.bff-list__link:hover .bff-list__art img {
+		transform: none;
+	}
+}

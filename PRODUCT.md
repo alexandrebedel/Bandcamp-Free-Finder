@@ -28,7 +28,8 @@ Bandcamp only shows the price on each release's own page. The extension reads ea
 ## Capabilities and Constraints
 
 - Verdicts: **free** (`minimum_price` is 0, which Bandcamp shows as "name your price"; may require an email), **partial** (paid release with some individually free tracks), **paid**, **unknown** (page could not be read).
-- Paid releases are left exactly as Bandcamp shows them: the extension adds to free tiles and does not dim, hide or restyle anything else (owner's decision).
+- Paid releases are left exactly as Bandcamp shows them by default: the extension adds to free tiles and does not dim, hide or restyle anything else (owner's decision). Hiding them is opt-in, per page, through the free list's "Free only" button.
+- A strip above the grid lists the free releases in page order, with scan progress; it only appears when there is at least one.
 - The toolbar icon shows the number of free releases on the current tab.
 - Custom-domain label sites (not on `*.bandcamp.com`) are not covered.
 
