@@ -40,7 +40,7 @@ After an update, click the reload icon on the extension's card, then reload the 
 
 ## Good to know
 
-- **Private.** No account, no analytics: the extension only talks to Bandcamp release pages (without your cookies) and keeps its answers on your computer for 24 hours.
+- **Private.** No account, no analytics: the extension only talks to Bandcamp release pages (without your cookies) and keeps its answers on your computer for 24 hours. Bandcamp pages can tell it's installed, because the page-side code is loaded from the extension.
 - **Light on Bandcamp.** On-screen covers first, a few requests at a time per label, a pause when Bandcamp asks for one (the strip then says "waiting for Bandcamp"), and no work at all on album, track or fan pages.
 - **Limits.** Only `*.bandcamp.com` pages (labels on their own domain aren't covered), and only the release grid, not the discography sidebar or the recommendations.
 - Not affiliated with Bandcamp.
@@ -96,4 +96,8 @@ npm run icons   # icons/src/*.svg -> icons/*.png, with headless Chrome
 npm run zip     # the package to upload to the store
 ```
 
-Store screenshots are taken by hand in Chrome, with the extension loaded: DevTools, device toolbar at 1280x800 and DPR 1, then **Capture screenshot**. Bandcamp blocks automated browsers, so they can't be scripted.
+Store screenshots are taken by hand, because Bandcamp blocks automated browsers. In Chrome, with the extension loaded: DevTools, device toolbar at 1280x800 (any DPR), then **Capture screenshot**. Cover anything personal (your Bandcamp avatar, top right), then turn the capture into the store's format (1280x800, 24-bit PNG without alpha; a test checks it):
+
+```bash
+sh scripts/store-shot.sh ~/Downloads/capture.png 2-bands-on-covers.png
+```

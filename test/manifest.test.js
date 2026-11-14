@@ -46,3 +46,17 @@ test("store screenshots are 1280x800 PNGs without alpha", () => {
 		assert.equal(png[25], 2, `${shot}: RGB, no alpha`);
 	}
 });
+
+test("every image the README shows exists", () => {
+	const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
+	const paths = [
+		...readme.matchAll(/!\[[^\]]*\]\(([^)\s]+)\)/g),
+		...readme.matchAll(/<img[^>]*src="([^"]+)"/g),
+	]
+		.map((m) => m[1])
+		.filter((path) => !/^https?:/.test(path));
+	assert.ok(paths.length >= 4, `found ${paths.length} images`);
+	for (const path of paths) {
+		assert.ok(existsSync(new URL(`../${path}`, import.meta.url)), path);
+	}
+});
