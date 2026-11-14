@@ -1,6 +1,8 @@
-# Bandcamp Free Finder
+# Free Download Finder for Bandcamp
 
-Chrome extension (Manifest V3) that marks the free releases on a Bandcamp label or artist page, without opening them.
+Spot free downloads and name-your-price releases on Bandcamp label and artist pages, without opening each album.
+
+A Chrome extension (Manifest V3). Not affiliated with Bandcamp.
 
 On `/` and `/music` pages, release tiles get checked in the background: the whole grid on labels of up to 100 releases, and on bigger ones only the covers you look at, plus everything once you click **Check the other N** (Bandcamp limits requests per label, and a big label alone can hit that limit). Free covers get a green band at the bottom:
 
@@ -69,7 +71,7 @@ After changing the code, click the reload icon on the extension card, then reloa
 npm install
 npm test        # verdict rules (node:test)
 npm run lint    # Biome
-npm run zip     # bandcamp-free-finder.zip
+npm run zip     # free-download-finder-for-bandcamp.zip
 ```
 
 ## Limits

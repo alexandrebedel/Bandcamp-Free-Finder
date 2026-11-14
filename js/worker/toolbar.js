@@ -9,6 +9,6 @@ export function showFreeCount(tabId, count) {
 		title:
 			count > 0
 				? `${count} free release${count > 1 ? "s" : ""} on this page`
-				: "Bandcamp Free Finder",
+				: "Free Download Finder for Bandcamp",
 	});
 }
