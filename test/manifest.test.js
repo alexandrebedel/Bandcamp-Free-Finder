@@ -60,3 +60,15 @@ test("every image the README shows exists", () => {
 		assert.ok(existsSync(new URL(`../${path}`, import.meta.url)), path);
 	}
 });
+
+// Promo tiles: 440x280 and 1400x560, JPEG or 24-bit PNG without alpha.
+test("store promo tiles have the store's sizes, without alpha", () => {
+	for (const [file, size] of [
+		["store/promo/small-440x280.png", [440, 280]],
+		["store/promo/marquee-1400x560.png", [1400, 560]],
+	]) {
+		assert.deepEqual(pngSize(file), size, file);
+		const png = readFileSync(new URL(`../${file}`, import.meta.url));
+		assert.equal(png[25], 2, `${file}: RGB, no alpha`);
+	}
+});

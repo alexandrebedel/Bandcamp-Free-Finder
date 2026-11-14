@@ -40,7 +40,7 @@ After an update, click the reload icon on the extension's card, then reload the 
 
 ## Good to know
 
-- **Private.** No account, no analytics: the extension only talks to Bandcamp release pages (without your cookies) and keeps its answers on your computer for 24 hours. Bandcamp pages can tell it's installed, because the page-side code is loaded from the extension.
+- **Private.** No account, no analytics: the extension only talks to Bandcamp release pages (without your cookies) and keeps its answers on your computer for 24 hours. Bandcamp pages can tell it's installed, because the page-side code is loaded from the extension. Details in the [privacy policy](PRIVACY.md).
 - **Light on Bandcamp.** On-screen covers first, a few requests at a time per label, a pause when Bandcamp asks for one (the strip then says "waiting for Bandcamp"), and no work at all on album, track or fan pages.
 - **Limits.** Only `*.bandcamp.com` pages (labels on their own domain aren't covered), and only the release grid, not the discography sidebar or the recommendations.
 - Not affiliated with Bandcamp.
@@ -79,7 +79,10 @@ css/
 icons/
   src/icon-*.svg        icon sources, one per size (16 and 32 drop the record)
   icon-*.png            what the manifest and the stores use
-store/screenshots/      Chrome Web Store screenshots, 1280x800
+store/
+  screenshots/          Chrome Web Store screenshots, 1280x800
+  promo/                promo tiles (src/*.html -> npm run promo)
+  listing.md            what to paste in each field of the store listing
 ```
 
 Content scripts can't be ES modules, so `js/content.js` loads `js/content/main.js` with a dynamic `import()`. That's why `js/content/` and `js/shared/` are `web_accessible_resources`; a test checks that every imported module is listed.
@@ -93,6 +96,7 @@ npm install
 npm test        # unit tests (node:test)
 npm run lint    # Biome
 npm run icons   # icons/src/*.svg -> icons/*.png, with headless Chrome
+npm run promo   # store promo tiles, with headless Chrome and ffmpeg
 npm run zip     # the package to upload to the store
 ```
 
