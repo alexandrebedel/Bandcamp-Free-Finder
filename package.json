@@ -15,7 +15,10 @@
 		"format": "biome format --write .",
 		"zip": "rm -f free-download-finder-for-bandcamp.zip && zip -r free-download-finder-for-bandcamp.zip manifest.json js css icons/*.png -x '*.DS_Store'",
 		"icons": "sh scripts/build-icons.sh",
-		"promo": "sh scripts/build-promo.sh"
+		"promo": "sh scripts/build-promo.sh",
+		"release": "npm version -m \"Release %s\"",
+		"preversion": "node scripts/version.js preflight && npm test && npm run lint",
+		"version": "node scripts/version.js sync && git add manifest.json"
 	},
 	"license": "ISC",
 	"devDependencies": {
