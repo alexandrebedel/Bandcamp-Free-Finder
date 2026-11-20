@@ -56,6 +56,15 @@ export function scanGrid(grid, { onFound, onStart, onResult }) {
 		onResult(tile, url, verdict);
 	}
 
+	async function checkFromBacklog(tile) {
+		try {
+			await check(tile, false);
+		} finally {
+			backlogInFlight--;
+			pumpBacklog();
+		}
+	}
+
 	function pumpBacklog() {
 		while (backlogInFlight < CHECK_ALL_WINDOW && backlog.length > 0) {
 			const tile = backlog.shift();
@@ -63,10 +72,8 @@ export function scanGrid(grid, { onFound, onStart, onResult }) {
 				continue;
 			}
 			backlogInFlight++;
-			check(tile, false).finally(() => {
-				backlogInFlight--;
-				pumpBacklog();
-			});
+			// Not awaited: up to CHECK_ALL_WINDOW checks are out at once.
+			checkFromBacklog(tile);
 		}
 	}
 
