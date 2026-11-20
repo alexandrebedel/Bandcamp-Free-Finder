@@ -135,6 +135,40 @@ test("prioritize ignores anything that isn't a Bandcamp release", async () => {
 	assert.equal(answer, null);
 });
 
+test("a count for a tab that just closed is dropped quietly", async () => {
+	// Once the tab is gone, Chrome rejects every call on its icon.
+	const { action } = globalThis.chrome;
+	const saved = { ...action };
+	const called = [];
+	for (const name of Object.keys(saved)) {
+		action[name] = async () => {
+			called.push(name);
+			throw new Error("No tab with id: 1.");
+		};
+	}
+	const unhandled = [];
+	const onUnhandled = (reason) => unhandled.push(reason);
+	process.on("unhandledRejection", onUnhandled);
+	let calledBeforeAnswer;
+	try {
+		const answer = await new Promise((resolve) => {
+			listener({ type: "bff:count", count: 3 }, { tab: { id: 1 } }, (a) => {
+				calledBeforeAnswer = called.length;
+				resolve(a);
+			});
+		});
+		assert.equal(answer, null);
+		// Node reports unhandled rejections before the next timer runs.
+		await new Promise((resolve) => setTimeout(resolve, 0));
+	} finally {
+		process.off("unhandledRejection", onUnhandled);
+		Object.assign(action, saved);
+	}
+	// The four calls go out together, and the answer doesn't wait for them.
+	assert.equal(calledBeforeAnswer, 4);
+	assert.deepEqual(unhandled, []);
+});
+
 test("a cached verdict is answered without fetching", async () => {
 	await ask({ type: "bff:verdict", url: url("cached") });
 	fetched.length = 0;

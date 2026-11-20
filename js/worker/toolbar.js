@@ -4,15 +4,25 @@
 // toolbar. The icon's light rim colour with ink digits stands apart from the
 // band, the sleeve and both toolbar themes.
 
-export function showFreeCount(tabId, count) {
-	chrome.action.setBadgeText({ tabId, text: count > 0 ? String(count) : "" });
-	chrome.action.setBadgeBackgroundColor({ tabId, color: "#a9bfb1" });
-	chrome.action.setBadgeTextColor({ tabId, color: "#04150b" });
-	chrome.action.setTitle({
-		tabId,
-		title:
-			count > 0
-				? `${count} free release${count > 1 ? "s" : ""} on this page`
-				: "Free Download Finder for Bandcamp",
-	});
+export async function showFreeCount(tabId, count) {
+	try {
+		await Promise.all([
+			chrome.action.setBadgeText({
+				tabId,
+				text: count > 0 ? String(count) : "",
+			}),
+			chrome.action.setBadgeBackgroundColor({ tabId, color: "#a9bfb1" }),
+			chrome.action.setBadgeTextColor({ tabId, color: "#04150b" }),
+			chrome.action.setTitle({
+				tabId,
+				title:
+					count > 0
+						? `${count} free release${count > 1 ? "s" : ""} on this page`
+						: "Free Download Finder for Bandcamp",
+			}),
+		]);
+	} catch {
+		// The tab closed after sending its count ("No tab with id"): there's
+		// no icon left to update.
+	}
 }
