@@ -33,9 +33,9 @@ async function readVerdict(key) {
 	return verdict;
 }
 
-async function queueRead(key, urgent) {
+async function clearWhenSettled(key, read) {
 	try {
-		return await queueFor(key).add(key, () => readVerdict(key), { urgent });
+		return await read;
 	} finally {
 		inflight.delete(key);
 	}
@@ -54,8 +54,9 @@ export async function getVerdict(href, urgent) {
 		}
 		return inflight.get(key);
 	}
-	// Not awaited before it's shared: a second ask must find it in `inflight`.
-	const job = queueRead(key, urgent);
+	const read = queueFor(key).add(key, () => readVerdict(key), { urgent });
+	// Shared before anything is awaited: a second ask must find it in `inflight`.
+	const job = clearWhenSettled(key, read);
 	inflight.set(key, job);
 	return job;
 }

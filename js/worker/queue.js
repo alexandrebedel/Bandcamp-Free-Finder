@@ -39,6 +39,7 @@ export function createQueue(maxConcurrent) {
 	}
 
 	return {
+		// `task` is a function: its value or error settles the promise returned.
 		add(key, task, { urgent: isUrgent = false } = {}) {
 			return new Promise((resolve, reject) => {
 				(isUrgent ? urgent : normal).push({ key, task, resolve, reject });
