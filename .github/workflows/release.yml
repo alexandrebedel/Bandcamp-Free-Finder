@@ -1,0 +1,89 @@
+# Publishes the extension to the Chrome Web Store when a version tag is pushed
+# (npm run release -- minor, then git push --follow-tags). The one-time setup
+# (Google Cloud, Developer Dashboard, GitHub variables) is in the README,
+# under "Publishing a version".
+name: Release
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run: build, and only read the store status (checks the credentials)"
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: chrome-web-store
+  cancel-in-progress: false
+
+env:
+  # They name the item; they don't give access to it.
+  CWS_PUBLISHER_ID: 295c92e5-6145-4291-82a4-f2e519e2688c
+  CWS_EXTENSION_ID: nekcanfceghgbgnadefjelomdkgkgoml
+  ZIP: free-download-finder-for-bandcamp.zip
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write # GitHub's OIDC token, traded for a Google one
+    steps:
+      - name: Check the setup
+        if: vars.GCP_WORKLOAD_IDENTITY_PROVIDER == '' || vars.GCP_SERVICE_ACCOUNT == ''
+        run: |
+          echo "::error::Set the GCP_WORKLOAD_IDENTITY_PROVIDER and GCP_SERVICE_ACCOUNT variables (README, Publishing a version)."
+          exit 1
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Check the version
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ "$REF_TYPE" = tag ]; then
+            node scripts/version.js check "$REF_NAME"
+          elif [ "$DRY_RUN" = true ]; then
+            node scripts/version.js check
+          else
+            echo "::error::Publish from a version tag: in Run workflow, pick the tag under Use workflow from (or tick the dry run)."
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run lint
+      - run: npm run zip
+
+      - id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+          access_token_lifetime: 900s
+          create_credentials_file: false
+          export_environment_variables: false
+
+      - name: Upload to the Chrome Web Store and submit for review
+        env:
+          CWS_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ "$DRY_RUN" = true ]; then set -- --dry-run; fi
+          node scripts/publish.js "$ZIP" "$@"
