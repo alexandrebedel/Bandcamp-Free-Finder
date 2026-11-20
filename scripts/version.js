@@ -85,12 +85,35 @@ function main([command, arg]) {
 		if (problems.length) fail(problems.join("\n"));
 		console.log(`Version ${manifest}${arg ? `, tag ${arg}` : ""}: OK`);
 	} else if (command === "preflight") {
-		const branch = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
-			cwd: root,
-			encoding: "utf8",
-		}).trim();
+		const git = (...args) =>
+			execFileSync("git", args, {
+				cwd: root,
+				encoding: "utf8",
+				stdio: ["ignore", "pipe", "pipe"],
+			}).trim();
+		const branch = git("rev-parse", "--abbrev-ref", "HEAD");
 		if (branch !== "master") {
 			fail(`Releases come from master, and this is ${branch}.`);
+		}
+		let origin = true;
+		try {
+			git("remote", "get-url", "origin");
+		} catch {
+			origin = false;
+		}
+		if (origin) {
+			try {
+				git("fetch", "--quiet", "origin", "master");
+			} catch {
+				fail(
+					"Couldn't fetch origin/master to check that master is up to date.",
+				);
+			}
+			try {
+				git("merge-base", "--is-ancestor", "origin/master", "HEAD");
+			} catch {
+				fail("master is behind origin/master: git pull, then release.");
+			}
 		}
 	} else if (command === "sync") {
 		const { version } = JSON.parse(read("package.json"));

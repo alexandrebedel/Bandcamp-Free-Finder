@@ -163,6 +163,12 @@ function sandbox() {
 	git("init", "-q", "-b", "master");
 	git("add", ".");
 	git("commit", "-q", "-m", "Start");
+	// An origin to check master against, up to date for now.
+	const origin = mkdtempSync(join(tmpdir(), "release-origin-"));
+	sandboxes.push(origin);
+	git("clone", "-q", "--bare", dir, origin);
+	git("remote", "add", "origin", origin);
+	git("fetch", "-q", "origin");
 	const run = (...args) =>
 		spawnSync("npm", ["run", "release", "--", ...args], {
 			cwd: dir,
@@ -213,6 +219,19 @@ test("npm run release refuses a branch other than master", () => {
 	const result = run("patch");
 	assert.notEqual(result.status, 0);
 	assert.match(result.stderr, /Releases come from master, and this is feature/);
+	assert.equal(version("package.json"), current);
+	assert.equal(version("manifest.json"), current);
+	assert.equal(git("tag"), "");
+});
+
+test("npm run release refuses a master behind origin/master", () => {
+	const { git, run, version } = sandbox();
+	git("commit", "-q", "--allow-empty", "-m", "Merged on GitHub");
+	git("push", "-q", "origin", "master");
+	git("reset", "-q", "--hard", "HEAD~1");
+	const result = run("patch");
+	assert.notEqual(result.status, 0);
+	assert.match(result.stderr, /master is behind origin\/master/);
 	assert.equal(version("package.json"), current);
 	assert.equal(version("manifest.json"), current);
 	assert.equal(git("tag"), "");
