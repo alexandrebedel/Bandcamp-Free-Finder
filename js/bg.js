@@ -40,6 +40,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 	}
 
 	if (msg?.type === "bff:count" && sender.tab?.id !== undefined) {
+		// Not awaited: the answer doesn't wait for the icon.
 		showFreeCount(sender.tab.id, msg.count);
 	}
 
