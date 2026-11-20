@@ -253,6 +253,12 @@ async function main(args) {
 			execFileSync("unzip", ["-p", zipPath, "manifest.json"], {
 				encoding: "utf8",
 				stdio: ["ignore", "pipe", "pipe"],
+				// unzip reads extra options from $UNZIP and $UNZIPOPT.
+				env: Object.fromEntries(
+					Object.entries(process.env).filter(
+						([k]) => k !== "UNZIP" && k !== "UNZIPOPT",
+					),
+				),
 			}),
 		).version;
 	} catch {

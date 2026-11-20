@@ -23,7 +23,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  ZIP: free-download-finder-for-bandcamp.zip
+  # Not ZIP: Info-ZIP's zip reads $ZIP as extra options.
+  PACKAGE: free-download-finder-for-bandcamp.zip
 
 jobs:
   # Everything that runs the dependencies' code, without the right to a
@@ -80,7 +81,7 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: package
-          path: ${{ env.ZIP }}
+          path: ${{ env.PACKAGE }}
           if-no-files-found: error
           retention-days: 30
 
@@ -127,4 +128,4 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           if [ "$DRY_RUN" = true ]; then set -- --dry-run; fi
-          node scripts/publish.js "$ZIP" "$@"
+          node scripts/publish.js "$PACKAGE" "$@"

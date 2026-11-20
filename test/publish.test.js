@@ -349,16 +349,23 @@ test("a network failure is a store error that names the cause", async () => {
 const scratch = mkdtempSync(join(tmpdir(), "publish-"));
 after(() => rmSync(scratch, { recursive: true, force: true }));
 
+// Without the store variables, nor the ones Info-ZIP reads extra options from
+// (the release workflow once set ZIP).
+const cleanEnv = Object.fromEntries(
+	Object.entries(process.env).filter(
+		([k]) =>
+			!k.startsWith("CWS_") &&
+			!["ZIP", "ZIPOPT", "UNZIP", "UNZIPOPT"].includes(k),
+	),
+);
+
 function command(zipPath) {
-	const env = Object.fromEntries(
-		Object.entries(process.env).filter(([k]) => !k.startsWith("CWS_")),
-	);
 	return spawnSync(
 		process.execPath,
 		[join(root, "scripts/publish.js"), zipPath],
 		{
 			env: {
-				...env,
+				...cleanEnv,
 				CWS_ACCESS_TOKEN: "test-token",
 				CWS_PUBLISHER_ID: "pub-id",
 				CWS_EXTENSION_ID: "item-id",
@@ -370,7 +377,10 @@ function command(zipPath) {
 
 test("the command refuses a zip that holds another version", () => {
 	writeFileSync(join(scratch, "manifest.json"), '{ "version": "9.9.9" }');
-	execFileSync("zip", ["-q", "other.zip", "manifest.json"], { cwd: scratch });
+	execFileSync("zip", ["-q", "other.zip", "manifest.json"], {
+		cwd: scratch,
+		env: cleanEnv,
+	});
 	const result = command(join(scratch, "other.zip"));
 	assert.equal(result.status, 1);
 	assert.match(result.stderr, /holds version 9\.9\.9, and manifest\.json says/);

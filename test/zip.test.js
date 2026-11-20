@@ -16,6 +16,15 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const zipName = "free-download-finder-for-bandcamp.zip";
 
+// Without the npm_* variables of the `npm test` running this file, nor the
+// ones Info-ZIP reads extra options from (the release workflow once set ZIP).
+const env = Object.fromEntries(
+	Object.entries(process.env).filter(
+		([k]) =>
+			!/^npm_/i.test(k) && !["ZIP", "ZIPOPT", "UNZIP", "UNZIPOPT"].includes(k),
+	),
+);
+
 // `npm run zip` in a copy of the repo, so the test leaves the real zip alone.
 // The copy gets the .DS_Store files a Mac leaves around, to check they stay out.
 let dir;
@@ -33,12 +42,10 @@ before(() => {
 	for (const path of [".DS_Store", "js/.DS_Store", "icons/.DS_Store"]) {
 		writeFileSync(join(dir, path), "");
 	}
-	const env = Object.fromEntries(
-		Object.entries(process.env).filter(([k]) => !/^npm_/i.test(k)),
-	);
 	execFileSync("npm", ["run", "--silent", "zip"], { cwd: dir, env });
 	entries = execFileSync("unzip", ["-Z1", join(dir, zipName)], {
 		encoding: "utf8",
+		env,
 	})
 		.split("\n")
 		.filter((entry) => entry && !entry.endsWith("/"));
@@ -109,6 +116,7 @@ test("the zipped manifest is the repo's", () => {
 		["-p", join(dir, zipName), "manifest.json"],
 		{
 			encoding: "utf8",
+			env,
 		},
 	);
 	assert.equal(zipped, readFileSync(join(root, "manifest.json"), "utf8"));
