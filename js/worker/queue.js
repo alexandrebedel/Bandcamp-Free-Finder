@@ -7,17 +7,24 @@ export function createQueue(maxConcurrent) {
 	const normal = [];
 	let active = 0;
 
+	async function run({ task, resolve, reject }) {
+		try {
+			// The task starts on a later microtask, never inside add() or pump().
+			await Promise.resolve();
+			resolve(await task());
+		} catch (err) {
+			reject(err);
+		} finally {
+			active--;
+			pump();
+		}
+	}
+
 	function pump() {
 		while (active < maxConcurrent && (urgent.length > 0 || normal.length > 0)) {
-			const { task, resolve, reject } = urgent.shift() ?? normal.shift();
 			active++;
-			Promise.resolve()
-				.then(task)
-				.then(resolve, reject)
-				.finally(() => {
-					active--;
-					pump();
-				});
+			// Not awaited: the loop starts up to maxConcurrent tasks at once.
+			run(urgent.shift() ?? normal.shift());
 		}
 	}
 
