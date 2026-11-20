@@ -161,7 +161,7 @@ The workflow signs in to Google as a service account through Workload Identity F
 
    `1040927428` is this repository's GitHub ID, which survives a rename. Only this repository, from a `v` tag or from `master`, can get a token. The last two lines print the provider's name (`projects/…/providers/free-download-finder`) and the service account's email.
 
-3. **The Chrome Web Store.** In the [Developer Dashboard](https://chrome.google.com/webstore/devconsole), under **Account**, add the service account's email (a publisher takes one service account).
+3. **The Chrome Web Store.** In the [Developer Dashboard](https://chrome.google.com/webstore/devconsole), open the publisher's **Settings** (under **Publisher** on the left, not your account's profile), and add the service account's email under **Service account** (a publisher takes one).
 
 4. **GitHub.** In the repository's **Settings**, **Secrets and variables**, **Actions**, **Variables** tab, add `GCP_WORKLOAD_IDENTITY_PROVIDER` (the provider's name) and `GCP_SERVICE_ACCOUNT` (the email). Or, from this folder:
 

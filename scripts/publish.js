@@ -67,7 +67,7 @@ function apiError(status, data, text) {
 			"\nThe access token was refused: it needs the chromewebstore scope, and expires after a while.";
 	} else if (status === 403) {
 		message +=
-			"\nIs the service account's email added in the Developer Dashboard (Account), for this publisher?";
+			"\nIs the service account's email added in the Developer Dashboard, in the publisher's Settings?";
 	} else if (status === 404) {
 		message += "\nCheck CWS_PUBLISHER_ID and CWS_EXTENSION_ID.";
 	}
