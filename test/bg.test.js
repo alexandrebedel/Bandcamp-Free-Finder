@@ -39,10 +39,12 @@ globalThis.chrome = {
 
 // Each fetch answers after a short delay with the page in 16 KB chunks,
 // and records which URLs were requested, when, and how many chunks were
-// pulled. URLs in `rateLimitOnce` get one 429 (Retry-After: 1) first.
+// pulled. URLs in `rateLimitOnce` get one 429 (Retry-After: 1) first, and
+// URLs in `serverError` always get a 500.
 const fetched = [];
 const fetchedAt = [];
 const rateLimitOnce = new Set();
+const serverError = new Set();
 let chunksPulled = 0;
 let totalChunks = 0;
 globalThis.fetch = async (url) => {
@@ -51,6 +53,9 @@ globalThis.fetch = async (url) => {
 	await new Promise((resolve) => setTimeout(resolve, 5));
 	if (rateLimitOnce.delete(url)) {
 		return new Response(null, { status: 429, headers: { "retry-after": "1" } });
+	}
+	if (serverError.has(url)) {
+		return new Response("server error", { status: 500 });
 	}
 	const bytes = new TextEncoder().encode(salePage + FILLER);
 	const chunks = [];
@@ -182,4 +187,29 @@ test("a 429 pauses that host only, and in-flight 429s count once", async () => {
 		retries[0] < 3500,
 		`retry at ${retries[0]} ms, not a doubled pause`,
 	);
+});
+
+test("a release page that fails to load is answered unknown", async () => {
+	const u = on("broken", "e1");
+	serverError.add(u);
+	const warned = [];
+	const warn = console.warn;
+	console.warn = (...args) => warned.push(args);
+	let returned;
+	let verdict;
+	try {
+		verdict = await new Promise((resolve) => {
+			returned = listener(
+				{ type: "bff:verdict", url: u },
+				{ tab: { id: 1 } },
+				resolve,
+			);
+		});
+	} finally {
+		console.warn = warn;
+	}
+	// Answered later, through sendResponse, so the listener kept the channel open.
+	assert.equal(returned, true);
+	assert.deepEqual(verdict, { kind: "unknown" });
+	assert.match(String(warned[0]?.[1]), /HTTP 500/);
 });

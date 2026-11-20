@@ -70,6 +70,17 @@ test("running or unknown keys are skipped", async () => {
 	assert.deepEqual(started, ["a", "b"]);
 });
 
+test("a task starts after add() returns, never inside it", async () => {
+	const q = createQueue(1);
+	const order = [];
+	const done = q.add("a", () => {
+		order.push("task");
+	});
+	order.push("after add");
+	await done;
+	assert.deepEqual(order, ["after add", "task"]);
+});
+
 test("a failing task does not stall the queue", async () => {
 	const q = createQueue(1);
 	const failed = q.add("x", async () => {
