@@ -164,8 +164,8 @@ test("a count for a tab that just closed is dropped quietly", async () => {
 		process.off("unhandledRejection", onUnhandled);
 		Object.assign(action, saved);
 	}
-	// The four calls go out together, and the answer doesn't wait for them.
-	assert.equal(calledBeforeAnswer, 4);
+	// The calls go out together, and the answer doesn't wait for them.
+	assert.equal(calledBeforeAnswer, Object.keys(saved).length);
 	assert.deepEqual(unhandled, []);
 });
 

@@ -70,22 +70,26 @@ if (grid) {
 			waiting = false;
 			watchForStall();
 			update();
+			// Bandcamp can redraw a cover while its verdict is pending: its .art
+			// is then a new one, or briefly not there at all. The release is
+			// counted and listed either way.
 			const art = tile.querySelector(".art");
-			if (!art) {
-				// Bandcamp re-rendered the tile while its verdict was pending.
-				return;
-			}
+			art?.classList.add("bff-art");
 
 			if (verdict.kind === "unknown") {
 				// Not the same as paid: the release may well be free.
-				art.title = "Couldn't check this release: open it to see the price";
+				if (art) {
+					art.title = "Couldn't check this release: open it to see the price";
+				}
 				return;
 			}
 			if (verdict.kind !== "free" && verdict.kind !== "partial") {
 				return;
 			}
 
-			addBand(art, verdict);
+			if (art) {
+				addBand(art, verdict);
+			}
 			const release = releaseId(url);
 			if (verdict.kind === "free" && !free.has(release)) {
 				free.add(release);
