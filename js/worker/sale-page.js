@@ -12,6 +12,16 @@ const FETCH_TIMEOUT_MS = 20_000;
 
 const TRALBUM_ATTR = 'data-tralbum="';
 
+// Cancels a response body, or the reader holding it. Called without await:
+// nothing waits for the cancel to finish.
+async function cancelQuietly(body) {
+	try {
+		await body?.cancel();
+	} catch {
+		// Already closed or errored: there's nothing left to free.
+	}
+}
+
 // Reads a release page's body only until its sale data has arrived (the
 // attribute ends about a fifth into a 250-320 KB page), then cancels the
 // read. Returns everything read so far.
@@ -40,7 +50,7 @@ export async function readUntilSaleData(body) {
 				start !== -1 ? start : Math.max(0, html.length - TRALBUM_ATTR.length);
 		}
 	} finally {
-		reader.cancel().catch(() => {});
+		cancelQuietly(reader);
 	}
 }
 
@@ -57,7 +67,7 @@ export async function fetchSaleHtml(url) {
 			succeeded(host);
 			return readUntilSaleData(res.body);
 		}
-		res.body?.cancel().catch(() => {});
+		cancelQuietly(res.body);
 		if (res.status !== 429) {
 			throw new Error(`HTTP ${res.status} for ${url}`);
 		}
