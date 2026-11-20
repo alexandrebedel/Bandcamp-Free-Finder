@@ -11,6 +11,19 @@ import { getVerdict, prioritize } from "./worker/verdicts.js";
 chrome.runtime.onInstalled.addListener(pruneCache);
 chrome.runtime.onStartup.addListener(pruneCache);
 
+async function answerVerdict(url, urgent, sendResponse) {
+	let verdict;
+	try {
+		verdict = await getVerdict(url, urgent);
+	} catch (err) {
+		console.warn("[free-download-finder-for-bandcamp]", err);
+		verdict = { kind: "unknown" };
+	}
+	sendResponse(verdict);
+}
+
+// Stays a plain function: returning true keeps the channel open until
+// sendResponse is called.
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 	if (msg?.type === "bff:verdict") {
 		if (!isReleaseUrl(msg.url)) {
@@ -18,10 +31,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 			sendResponse({ kind: "unknown" });
 			return false;
 		}
-		getVerdict(msg.url, Boolean(msg.urgent)).then(sendResponse, (err) => {
-			console.warn("[free-download-finder-for-bandcamp]", err);
-			sendResponse({ kind: "unknown" });
-		});
+		answerVerdict(msg.url, Boolean(msg.urgent), sendResponse);
 		return true;
 	}
 
