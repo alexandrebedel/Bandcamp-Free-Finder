@@ -45,7 +45,7 @@ before(() => {
 	manifest = JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8"));
 });
 
-after(() => rmSync(dir, { recursive: true, force: true }));
+after(() => dir && rmSync(dir, { recursive: true, force: true }));
 
 function filesUnder(path) {
 	return readdirSync(join(root, path), { recursive: true, withFileTypes: true })

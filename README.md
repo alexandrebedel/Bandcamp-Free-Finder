@@ -30,7 +30,9 @@ Open a label or artist page on Bandcamp: the extension checks the releases in th
 
 ## Install
 
-Until it's on the Chrome Web Store, load it unpacked:
+Install it from the [Chrome Web Store](https://chromewebstore.google.com/detail/nekcanfceghgbgnadefjelomdkgkgoml).
+
+To try the code in this repository, load it unpacked:
 
 1. Open `chrome://extensions` and turn on **Developer mode**.
 2. Click **Load unpacked** and pick this folder.
@@ -108,19 +110,19 @@ sh scripts/store-shot.sh ~/Downloads/capture.png 2-bands-on-covers.png
 
 ## Publishing a version
 
-A version tag publishes the extension. On `v1.2.0`, the [Release workflow](.github/workflows/release.yml) checks that the tag matches `manifest.json`, runs the tests and the lint, builds the zip with `npm run zip`, uploads it to the Chrome Web Store and submits it for review:
+A version tag publishes the extension. On `v1.2.0`, the [Release workflow](.github/workflows/release.yml) checks that the tag matches `manifest.json` and is on `master`, runs the tests and the lint, builds the zip with `npm run zip`, uploads it to the Chrome Web Store and submits it for review:
 
 ```bash
 npm run release -- patch   # 1.1.0 -> 1.1.1; or minor, major, or an exact version like 1.2.0
 ```
 
 ```bash
-git push --follow-tags
+git push --atomic --follow-tags
 ```
 
-`npm run release` only runs on a clean `master`. It runs the tests and the lint, sets the version in `package.json`, `package-lock.json` and `manifest.json`, commits "Release 1.1.1" and tags `v1.1.1`. Pushing the tag starts the workflow (Actions tab); the review status is then in the [Developer Dashboard](https://chrome.google.com/webstore/devconsole). Because the extension reads `*.bandcamp.com`, a review often takes a few days.
+`npm run release` only runs on a clean `master`, up to date with GitHub's. It runs the tests and the lint, sets the version in `package.json`, `package-lock.json` and `manifest.json`, commits "Release 1.1.1" and tags `v1.1.1`. `--atomic` pushes `master` and the tag together or not at all, so a tag can't go up on its own. Pushing the tag starts the workflow (Actions tab); the review status is then in the [Developer Dashboard](https://chrome.google.com/webstore/devconsole). Because the extension reads `*.bandcamp.com`, a review often takes a few days.
 
-To run it again, say after fixing the setup: **Actions**, **Release**, **Run workflow**, with the tag picked under **Use workflow from**. A version that's already submitted is left alone, so a second run is harmless. Tick **Dry run** (on `master` or a tag) to only build and check the credentials: it reads the store status and uploads nothing.
+To run it again, say after fixing the setup: **Actions**, **Release**, **Run workflow**, with the tag picked under **Use workflow from**. A version that's already submitted is left alone, so a second run is harmless. Tick **Dry run** (on `master` or a tag) to only build and check the credentials: it reads the store status, says what a real run would do, and uploads nothing.
 
 Good to know:
 
