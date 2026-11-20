@@ -71,6 +71,10 @@ if (grid) {
 			watchForStall();
 			update();
 			const art = tile.querySelector(".art");
+			if (!art) {
+				// Bandcamp re-rendered the tile while its verdict was pending.
+				return;
+			}
 
 			if (verdict.kind === "unknown") {
 				// Not the same as paid: the release may well be free.
