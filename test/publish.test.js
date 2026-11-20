@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { test } from "node:test";
+import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { release, StoreError, storeClient } from "../scripts/publish.js";
+import { plan, release, StoreError, storeClient } from "../scripts/publish.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const base = "https://chromewebstore.googleapis.com";
@@ -12,7 +14,7 @@ const zip = Buffer.from("PK fake zip");
 
 // A store that answers each method from its own list of responses, in order,
 // and records every request.
-function fakeStore(answers) {
+function fakeStore(answers, clientOptions = {}) {
 	const requests = [];
 	const fetch = async (url, init) => {
 		requests.push({ url, ...init });
@@ -27,6 +29,7 @@ function fakeStore(answers) {
 		publisherId: "pub-id",
 		itemId: "item-id",
 		fetch,
+		...clientOptions,
 	});
 	const lines = [];
 	const waits = [];
@@ -253,4 +256,129 @@ test("the command names the variables it's missing", () => {
 	);
 	assert.equal(result.status, 1);
 	assert.match(result.stderr, /Missing: CWS_ACCESS_TOKEN, CWS_EXTENSION_ID/);
+});
+
+test("a dry run says what a real run would do", async () => {
+	const cases = [
+		[live, /A real run would upload 1\.2\.0 and submit it for review/],
+		[
+			{ publishedItemRevisionStatus: published("1.2.0") },
+			/A real run would skip it: 1\.2\.0 is already published/,
+		],
+		[
+			{ publishedItemRevisionStatus: published("1.3.0") },
+			/A real run would stop: 1\.2\.0 isn't above the published 1\.3\.0/,
+		],
+	];
+	for (const [status, line] of cases) {
+		const store = fakeStore({ fetchStatus: [status] });
+		assert.deepEqual(await store.run({ dryRun: true }), { state: "DRY_RUN" });
+		assert.ok(
+			store.lines.some((l) => line.test(l)),
+			store.lines.join("\n"),
+		);
+		assert.deepEqual(store.called(), ["fetchStatus"]);
+	}
+});
+
+test("every release channel counts, as during a percentage rollout", () => {
+	const rollout = (...versions) => ({
+		publishedItemRevisionStatus: {
+			state: "PUBLISHED",
+			distributionChannels: versions.map((crxVersion) => ({ crxVersion })),
+		},
+	});
+	assert.deepEqual(plan(rollout("1.1.0", "1.2.0"), "1.2.0"), {
+		skip: "1.2.0 is already published.",
+		state: "PUBLISHED",
+	});
+	assert.throws(
+		() => plan(rollout("1.1.0", "1.3.0"), "1.2.0"),
+		/isn't above the published 1\.3\.0/,
+	);
+	assert.deepEqual(plan(rollout("1.1.0", "1.1.1"), "1.2.0"), {});
+});
+
+test("a store that doesn't answer fails the call, after the time limit", async () => {
+	// A real request's socket keeps the process alive while it waits; this
+	// timer stands in for it (AbortSignal.timeout's own timer doesn't).
+	const hang = async (_url, init) =>
+		new Promise((_, reject) => {
+			const socket = setTimeout(() => {}, 5000);
+			init.signal.addEventListener("abort", () => {
+				clearTimeout(socket);
+				reject(init.signal.reason);
+			});
+		});
+	const client = storeClient({
+		token: "test-token",
+		publisherId: "pub-id",
+		itemId: "item-id",
+		fetch: hang,
+		timeout: 20,
+	});
+	await assert.rejects(
+		client.fetchStatus(),
+		(error) =>
+			error instanceof StoreError &&
+			/GET fetchStatus: no answer after 0\.02 s/.test(error.message),
+	);
+});
+
+test("a network failure is a store error that names the cause", async () => {
+	const offline = async () => {
+		throw new TypeError("fetch failed", {
+			cause: new Error("getaddrinfo ENOTFOUND chromewebstore.googleapis.com"),
+		});
+	};
+	const client = storeClient({
+		token: "test-token",
+		publisherId: "pub-id",
+		itemId: "item-id",
+		fetch: offline,
+	});
+	await assert.rejects(
+		client.publish(),
+		(error) =>
+			error instanceof StoreError &&
+			/POST publish: fetch failed \(getaddrinfo ENOTFOUND/.test(error.message),
+	);
+});
+
+// The command checks the zip's manifest before it talks to the store.
+const scratch = mkdtempSync(join(tmpdir(), "publish-"));
+after(() => rmSync(scratch, { recursive: true, force: true }));
+
+function command(zipPath) {
+	const env = Object.fromEntries(
+		Object.entries(process.env).filter(([k]) => !k.startsWith("CWS_")),
+	);
+	return spawnSync(
+		process.execPath,
+		[join(root, "scripts/publish.js"), zipPath],
+		{
+			env: {
+				...env,
+				CWS_ACCESS_TOKEN: "test-token",
+				CWS_PUBLISHER_ID: "pub-id",
+				CWS_EXTENSION_ID: "item-id",
+			},
+			encoding: "utf8",
+		},
+	);
+}
+
+test("the command refuses a zip that holds another version", () => {
+	writeFileSync(join(scratch, "manifest.json"), '{ "version": "9.9.9" }');
+	execFileSync("zip", ["-q", "other.zip", "manifest.json"], { cwd: scratch });
+	const result = command(join(scratch, "other.zip"));
+	assert.equal(result.status, 1);
+	assert.match(result.stderr, /holds version 9\.9\.9, and manifest\.json says/);
+});
+
+test("the command refuses a file that isn't a package", () => {
+	writeFileSync(join(scratch, "not-a.zip"), "nope");
+	const result = command(join(scratch, "not-a.zip"));
+	assert.equal(result.status, 1);
+	assert.match(result.stderr, /no readable manifest\.json/);
 });
