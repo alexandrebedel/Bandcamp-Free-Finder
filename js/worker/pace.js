@@ -59,25 +59,30 @@ function refill(state) {
 	state.refilledAt = now;
 }
 
+async function takeTurn(state, previous) {
+	await previous;
+	for (;;) {
+		const paused = state.pausedUntil - Date.now();
+		if (paused > 0) {
+			await nap(paused);
+			continue;
+		}
+		refill(state);
+		if (state.tokens >= 1) {
+			state.tokens -= 1;
+			return;
+		}
+		await nap((1 - state.tokens) * state.spacing);
+	}
+}
+
 // Resolves when it's this caller's turn to send a request to `host`, in the
 // order callers asked.
 export function waitTurn(host) {
 	const state = stateOf(host);
-	const turn = state.line.then(async () => {
-		for (;;) {
-			const paused = state.pausedUntil - Date.now();
-			if (paused > 0) {
-				await nap(paused);
-				continue;
-			}
-			refill(state);
-			if (state.tokens >= 1) {
-				state.tokens -= 1;
-				return;
-			}
-			await nap((1 - state.tokens) * state.spacing);
-		}
-	});
+	// Joins the line right away, without waiting: the next caller lines up
+	// behind this turn.
+	const turn = takeTurn(state, state.line);
 	state.line = turn;
 	return turn;
 }

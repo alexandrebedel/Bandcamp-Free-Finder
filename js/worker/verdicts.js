@@ -33,6 +33,14 @@ async function readVerdict(key) {
 	return verdict;
 }
 
+async function clearWhenSettled(key, read) {
+	try {
+		return await read;
+	} finally {
+		inflight.delete(key);
+	}
+}
+
 // `urgent`: the cover is on screen, so it skips ahead of the off-screen ones.
 export async function getVerdict(href, urgent) {
 	const key = releaseKey(href);
@@ -46,9 +54,9 @@ export async function getVerdict(href, urgent) {
 		}
 		return inflight.get(key);
 	}
-	const job = queueFor(key)
-		.add(key, () => readVerdict(key), { urgent })
-		.finally(() => inflight.delete(key));
+	const read = queueFor(key).add(key, () => readVerdict(key), { urgent });
+	// Shared before anything is awaited: a second ask must find it in `inflight`.
+	const job = clearWhenSettled(key, read);
 	inflight.set(key, job);
 	return job;
 }
