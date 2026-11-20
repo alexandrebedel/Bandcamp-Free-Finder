@@ -97,7 +97,7 @@ npm test        # unit tests (node:test)
 npm run lint    # Biome
 npm run icons   # icons/src/*.svg -> icons/*.png, with headless Chrome
 npm run promo   # store promo tiles, with headless Chrome and ffmpeg
-npm run zip     # the package to upload to the store
+npm run zip     # the package the store gets (the release workflow builds it)
 ```
 
 Store screenshots are taken by hand, because Bandcamp blocks automated browsers. In Chrome, with the extension loaded: DevTools, device toolbar at 1280x800 (any DPR), then **Capture screenshot**. Cover anything personal (your Bandcamp avatar, top right), then turn the capture into the store's format (1280x800, 24-bit PNG without alpha; a test checks it):
@@ -105,3 +105,72 @@ Store screenshots are taken by hand, because Bandcamp blocks automated browsers.
 ```bash
 sh scripts/store-shot.sh ~/Downloads/capture.png 2-bands-on-covers.png
 ```
+
+## Publishing a version
+
+A version tag publishes the extension. On `v1.2.0`, the [Release workflow](.github/workflows/release.yml) checks that the tag matches `manifest.json`, runs the tests and the lint, builds the zip with `npm run zip`, uploads it to the Chrome Web Store and submits it for review:
+
+```bash
+npm run release -- patch   # 1.1.0 -> 1.1.1; or minor, major, or an exact version like 1.2.0
+```
+
+```bash
+git push --follow-tags
+```
+
+`npm run release` only runs on a clean `master`. It runs the tests and the lint, sets the version in `package.json`, `package-lock.json` and `manifest.json`, commits "Release 1.1.1" and tags `v1.1.1`. Pushing the tag starts the workflow (Actions tab); the review status is then in the [Developer Dashboard](https://chrome.google.com/webstore/devconsole). Because the extension reads `*.bandcamp.com`, a review often takes a few days.
+
+To run it again, say after fixing the setup: **Actions**, **Release**, **Run workflow**, with the tag picked under **Use workflow from**. A version that's already submitted is left alone, so a second run is harmless. Tick **Dry run** (on `master` or a tag) to only build and check the credentials: it reads the store status and uploads nothing.
+
+Good to know:
+
+- While a version is in review, the next one waits: the workflow stops and says so. Wait for the review, or cancel it in the dashboard, then run the workflow again from the tag.
+- The API publishes with the visibility already set. After changing the visibility in the dashboard, publish once by hand there, or the API refuses.
+- The store listing (text, screenshots, privacy) is still edited in the dashboard; the API only sends packages.
+
+### One-time setup
+
+The workflow signs in to Google as a service account through Workload Identity Federation: GitHub gives the run a token that Google trades for a 15-minute one. There's no key or password to store, so GitHub needs no secret, only two variables. The publisher ID and the extension ID are in the workflow; they name the item but give no access to it.
+
+1. **A Google Cloud project.** In the [Google Cloud console](https://console.cloud.google.com/), create a project (or reuse one) and note its ID, shown in the project picker.
+
+2. **The service account and the link with GitHub.** Open Cloud Shell (the `>_` button at the top of the console), set your project ID on the first line, and paste:
+
+   ```bash
+   PROJECT_ID=your-project-id
+   gcloud config set project "$PROJECT_ID"
+   gcloud services enable chromewebstore.googleapis.com iam.googleapis.com iamcredentials.googleapis.com sts.googleapis.com
+
+   gcloud iam service-accounts create cws-publisher --display-name="Chrome Web Store publisher"
+   gcloud iam workload-identity-pools create github --location=global --display-name="GitHub Actions"
+   gcloud iam workload-identity-pools providers create-oidc free-download-finder \
+     --location=global --workload-identity-pool=github \
+     --issuer-uri="https://token.actions.githubusercontent.com" \
+     --attribute-mapping="google.subject=assertion.sub,attribute.repository_id=assertion.repository_id" \
+     --attribute-condition="assertion.repository_id == '1040927428' && (assertion.ref.startsWith('refs/tags/v') || assertion.ref == 'refs/heads/master')"
+
+   POOL=$(gcloud iam workload-identity-pools describe github --location=global --format="value(name)")
+   gcloud iam service-accounts add-iam-policy-binding "cws-publisher@$PROJECT_ID.iam.gserviceaccount.com" \
+     --role=roles/iam.workloadIdentityUser \
+     --member="principalSet://iam.googleapis.com/$POOL/attribute.repository_id/1040927428"
+
+   gcloud iam workload-identity-pools providers describe free-download-finder \
+     --location=global --workload-identity-pool=github --format="value(name)"
+   echo "cws-publisher@$PROJECT_ID.iam.gserviceaccount.com"
+   ```
+
+   `1040927428` is this repository's GitHub ID, which survives a rename. Only this repository, from a `v` tag or from `master`, can get a token. The last two lines print the provider's name (`projects/…/providers/free-download-finder`) and the service account's email.
+
+3. **The Chrome Web Store.** In the [Developer Dashboard](https://chrome.google.com/webstore/devconsole), under **Account**, add the service account's email (a publisher takes one service account).
+
+4. **GitHub.** In the repository's **Settings**, **Secrets and variables**, **Actions**, **Variables** tab, add `GCP_WORKLOAD_IDENTITY_PROVIDER` (the provider's name) and `GCP_SERVICE_ACCOUNT` (the email). Or, from this folder:
+
+   ```bash
+   gh variable set GCP_WORKLOAD_IDENTITY_PROVIDER --body "projects/…/providers/free-download-finder"
+   ```
+
+   ```bash
+   gh variable set GCP_SERVICE_ACCOUNT --body "cws-publisher@your-project-id.iam.gserviceaccount.com"
+   ```
+
+5. **A dry run.** **Actions**, **Release**, **Run workflow** on `master`, with **Dry run** ticked. The log of the last step shows the published version and "the credentials work". A new service account can take a minute or two to be accepted.
