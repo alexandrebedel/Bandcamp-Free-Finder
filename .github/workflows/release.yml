@@ -1,7 +1,7 @@
 # Publishes the extension to the Chrome Web Store when a version tag is pushed
-# (npm run release -- minor, then git push --follow-tags). The one-time setup
-# (Google Cloud, Developer Dashboard, GitHub variables) is in the README,
-# under "Publishing a version".
+# (npm run release -- minor, then git push --atomic --follow-tags). The
+# one-time setup (Google Cloud, Developer Dashboard, GitHub variables) is in the
+# README, under "Publishing a version".
 name: Release
 
 on:
@@ -10,29 +10,29 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Dry run: build, and only read the store status (checks the credentials)"
+        description: "Dry run: build, read the store status and say what a real run would do"
         type: boolean
         default: false
 
 permissions: {}
 
+# One publish at a time. Dry runs queue apart, so one can't cancel a publish
+# waiting its turn.
 concurrency:
-  group: chrome-web-store
+  group: chrome-web-store-${{ inputs.dry_run && 'dry-run' || 'publish' }}
   cancel-in-progress: false
 
 env:
-  # They name the item; they don't give access to it.
-  CWS_PUBLISHER_ID: 295c92e5-6145-4291-82a4-f2e519e2688c
-  CWS_EXTENSION_ID: nekcanfceghgbgnadefjelomdkgkgoml
   ZIP: free-download-finder-for-bandcamp.zip
 
 jobs:
-  publish:
+  # Everything that runs the dependencies' code, without the right to a
+  # Google token.
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     permissions:
       contents: read
-      id-token: write # GitHub's OIDC token, traded for a Google one
     steps:
       - name: Check the setup
         if: vars.GCP_WORKLOAD_IDENTITY_PROVIDER == '' || vars.GCP_SERVICE_ACCOUNT == ''
@@ -43,6 +43,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0 # origin/master, for the check below
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -64,10 +65,50 @@ jobs:
             exit 1
           fi
 
+      - name: Check the commit is on master
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/master; then
+            echo "::error::$GITHUB_SHA isn't on master. Release from master: npm run release, then git push --atomic --follow-tags."
+            exit 1
+          fi
+
       - run: npm ci
       - run: npm test
       - run: npm run lint
       - run: npm run zip
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: package
+          path: ${{ env.ZIP }}
+          if-no-files-found: error
+          retention-days: 30
+
+  # Gets the Google token and sends the zip; runs only our own script, no
+  # dependency.
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write # GitHub's OIDC token, traded for a Google one
+    env:
+      # They name the item; they don't give access to it.
+      CWS_PUBLISHER_ID: 295c92e5-6145-4291-82a4-f2e519e2688c
+      CWS_EXTENSION_ID: nekcanfceghgbgnadefjelomdkgkgoml
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: package
 
       - id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
